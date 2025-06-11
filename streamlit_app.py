@@ -1,69 +1,139 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from io import BytesIO
-import base64
+import matplotlib
+from PIL import Image
 
-# Configuración inicial de la página
-st.set_page_config(page_title="REPORTE MENSUAL", layout="wide", page_icon="📊")
+matplotlib.use('Agg')
 
-# Cargar el logo
-st.image("logo.jpg", width=200)
+# ---------------- CONFIGURACIÓN GENERAL ----------------
+st.set_page_config(page_title="Reporte Mensual", layout="centered")
 
-# Título estilizado
-st.markdown("<h1 style='text-align: center; color: #003366;'>REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO</h1>", unsafe_allow_html=True)
+# ---------------- ESTILO GENERAL ----------------
+st.markdown("""
+    <style>
+        body {
+            background-color: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .logo {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        .titulo {
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            color: #003366;
+            margin-top: -10px;
+            letter-spacing: 1px;
+        }
+        .metric-container .stMetric {
+            text-align: center;
+        }
+        .metric-label {
+            font-size: 16px;
+            font-weight: 500;
+            color: #666;
+        }
+        .metric-value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        .delta-positive {
+            color: green;
+            font-weight: bold;
+        }
+        .delta-negative {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-# Sidebar con selector de mes
-meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", 
-         "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-mes_idx = st.sidebar.selectbox("📅 Selecciona un mes", range(12), format_func=lambda x: meses[x])
+# ---------------- LOGO Y TÍTULO ----------------
+logo = Image.open("logo.jpg")
+st.image(logo, use_column_width=False, width=180)
+st.markdown('<div class="titulo">REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO</div>', unsafe_allow_html=True)
+st.markdown("---")
 
-# Cargar datos
-archivo_excel = "HEC mensuales 2025.xlsx"
-df = pd.read_excel(archivo_excel, sheet_name="Pluviometria", header=127)
-df = df.iloc[:, [0, 1, 2, 3]]
-df.columns = ["Mes", "2025", "2024", "Prom_5Anios"]
+# ---------------- SIDEBAR ----------------
+st.sidebar.header("📅 Selecciona Mes")
+meses = {
+    "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
+    "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
+    "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+}
+mes_nombre = st.sidebar.selectbox("Mes", list(meses.keys()))
+mes_numero = meses[mes_nombre] - 1  # índice para listas (0-based)
 
-# Obtener valores de KPIs
-prec_2025_mes = df.iloc[mes_idx, 1]
-prec_2024_mes = df.iloc[mes_idx, 2]
-prom_5anios_mes = df.iloc[mes_idx, 3]
+# ---------------- CARGA Y PROCESAMIENTO DE DATOS ----------------
+archivo = "HEC mensuales 2025.xlsx"
+df_raw = pd.read_excel(archivo, sheet_name="Pluviometria", header=127, usecols="C:D")
 
-# Delta con colores
+# Renombra columnas para facilitar el trabajo
+df_raw.columns = ["Fecha", "Precipitacion"]
+
+# Filtra los años requeridos
+df_raw['Fecha'] = pd.to_datetime(df_raw['Fecha'])
+df_raw['Año'] = df_raw['Fecha'].dt.year
+df_raw['Mes'] = df_raw['Fecha'].dt.month
+
+df_2025 = df_raw[df_raw["Año"] == 2025]
+df_2024 = df_raw[df_raw["Año"] == 2024]
+df_5anios = df_raw[df_raw["Año"].between(2020, 2024)]
+
+# Calcular promedio 5 años por mes
+promedio_5a = df_5anios.groupby("Mes")["Precipitacion"].mean()
+
+# Extrae valores para el mes seleccionado
+prec_2025_mes = df_2025[df_2025["Mes"] == meses[mes_nombre]]["Precipitacion"].sum()
+prec_2024_mes = df_2024[df_2024["Mes"] == meses[mes_nombre]]["Precipitacion"].sum()
+prec_prom_mes = promedio_5a.loc[meses[mes_nombre]]
+
 delta_2025_vs_24 = prec_2025_mes - prec_2024_mes
-delta_2025_vs_prom = prec_2025_mes - prom_5anios_mes
+delta_2025_vs_prom = prec_2025_mes - prec_prom_mes
+
+# ---------------- KPIs ----------------
+st.subheader("📊 Precipitaciones Mensuales")
 
 col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("2025", f"{prec_2025_mes:.1f} mm", f"{delta_2025_vs_24:+.1f} mm", delta_color="normal")
-with col2:
-    st.metric("2024", f"{prec_2024_mes:.1f} mm")
-with col3:
-    st.metric("Promedio 5 años", f"{prom_5anios_mes:.1f} mm", f"{delta_2025_vs_prom:+.1f} mm", delta_color="normal")
 
-# Gráfico
+col1.metric(label="Año 2025", value=f"{prec_2025_mes:.1f} mm", delta=f"{delta_2025_vs_24:+.1f} mm")
+col2.metric(label="Año 2024", value=f"{prec_2024_mes:.1f} mm")
+col3.metric(label="Prom. 2020–2024", value=f"{prec_prom_mes:.1f} mm", delta=f"{delta_2025_vs_prom:+.1f} mm")
+
+# ---------------- GRÁFICO ----------------
+st.markdown("### 📈 Comparación de Precipitaciones Acumuladas")
+
 fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(df["Mes"], df["2025"], label="2025", linestyle='--', marker='o')
-ax.plot(df["Mes"], df["2024"], label="2024", linestyle='--', marker='o')
-ax.plot(df["Mes"], df["Prom_5Anios"], label="Prom. últimos 5 años", linestyle='--', marker='o')
-ax.set_title("Precipitaciones Mensuales", fontsize=16)
+ax.plot(df_2025["Mes"], df_2025["Precipitacion"].groupby(df_2025["Mes"]).sum(), label="2025", linestyle='--', linewidth=2)
+ax.plot(df_2024["Mes"], df_2024["Precipitacion"].groupby(df_2024["Mes"]).sum(), label="2024", linestyle='--', linewidth=2)
+ax.plot(promedio_5a.index, promedio_5a.values, label="Prom. 2020–2024", linestyle='--', linewidth=2)
+
+ax.set_xticks(range(1, 13))
+ax.set_xticklabels(list(meses.keys()), rotation=45)
+ax.set_ylabel("Precipitación (mm)")
 ax.set_xlabel("Mes")
-ax.set_ylabel("Precipitaciones (mm)")
-ax.grid(True, linestyle='--', alpha=0.3)
+ax.grid(True, alpha=0.3)
 ax.legend()
+ax.set_facecolor("white")
+fig.patch.set_facecolor("white")
+
 st.pyplot(fig)
 
-# Espacio para futuras secciones
-with st.expander("⚡ Generación de energía"):
-    st.write("Próximamente...")
-
-with st.expander("💰 Ingresos"):
-    st.write("Próximamente...")
-
-with st.expander("🔒 Cumplimiento normativo"):
-    st.write("Próximamente...")
-
-# Separador final
+# ---------------- ESPACIOS PARA FUTURAS SECCIONES ----------------
 st.markdown("---")
-st.markdown("<footer style='text-align:center'>© 2025 Hidroeléctrica El Canelo</footer>", unsafe_allow_html=True)
+with st.expander("⚡ Generación Eléctrica (Próximamente)"):
+    st.write("Se mostrará información de generación mensual y comparaciones.")
 
+with st.expander("💰 Ingresos y Mercado (Próximamente)"):
+    st.write("Análisis de ingresos mensuales y precios de mercado.")
+
+with st.expander("🔒 Seguridad y Normativa (Próximamente)"):
+    st.write("Indicadores de cumplimiento y novedades regulatorias.")
+
+# ---------------- FOOTER ----------------
+st.markdown("---")
+st.markdown("Reporte generado automáticamente | © 2025 Hidroeléctrica El Canelo", unsafe_allow_html=True)
