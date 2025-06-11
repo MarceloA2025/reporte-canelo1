@@ -1,61 +1,102 @@
-from datetime import datetime
+import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import streamlit as st
+import matplotlib.ticker as mticker
+from datetime import datetime
 from PIL import Image
 
-# CONFIGURACIÓN INICIAL
-st.set_page_config(layout="wide")
-logo = Image.open("logo.jpg")
-st.image(logo, width=200)
-st.title("📊 REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO")
+# --- CONFIGURACIÓN GENERAL ---
+st.set_page_config(
+    page_title="Reporte Mensual - Hidroeléctrica El Canelo S.A. - 2025",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
 
-# CARGA DE DATOS
-excel_path = "HEC mensuales 2025.xlsx"
-sheet_name = "Pluviometria"
-df_raw = pd.read_excel(excel_path, sheet_name=sheet_name, header=127, usecols="C:D")
+# --- LOGO ---
+logo = "logo.jpg"
+col1, col2 = st.columns([1, 10])
+with col1:
+    st.image(logo, width=80)
+with col2:
+    st.markdown("### 📊 Reporte Mensual - Hidroeléctrica El Canelo S.A. - 2025")
 
-# PROCESAMIENTO
-df_raw = df_raw.rename(columns={df_raw.columns[0]: "Fecha", df_raw.columns[1]: "Precipitaciones"})
-df_raw.dropna(inplace=True)
-df_raw["Fecha"] = pd.to_datetime(df_raw["Fecha"], errors="coerce")
-df_raw.dropna(subset=["Fecha"], inplace=True)
-df_raw["Año"] = df_raw["Fecha"].dt.year
-df_raw["Mes"] = df_raw["Fecha"].dt.strftime("%B")
+# --- SELECCIÓN DE MES ---
+meses_dict = {
+    1: "enero", 2: "febrero", 3: "marzo", 4: "abril", 5: "mayo", 6: "junio",
+    7: "julio", 8: "agosto", 9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"
+}
+mes_seleccionado = st.selectbox("Selecciona el mes del informe", list(meses_dict.values()))
+numero_mes = list(meses_dict.values()).index(mes_seleccionado) + 1
 
-# FILTROS
-df_2025 = df_raw[df_raw["Año"] == 2025]
-df_2024 = df_raw[df_raw["Año"] == 2024]
-df_5y = df_raw[df_raw["Año"].between(2020, 2024)]
+# --- LECTURA DE DATOS ---
+archivo_excel = "HEC mensuales 2025.xlsx"
+df = pd.read_excel(archivo_excel, sheet_name="Pluviometria", header=None, skiprows=128, usecols="C:D")
+df.columns = ["Fecha", "Precipitaciones"]
+df = df.dropna()
+df = df[df["Fecha"] != "Fecha"]  # remover encabezado repetido
+df["Fecha"] = pd.to_datetime(df["Fecha"], format="%b-%y", errors="coerce")
+df = df.dropna(subset=["Fecha"])
+df["Año"] = df["Fecha"].dt.year
+df["Mes"] = df["Fecha"].dt.month
+df = df.sort_values("Fecha")
 
-# PROMEDIOS
-df_avg = df_5y.groupby(df_5y["Fecha"].dt.strftime("%B"))["Precipitaciones"].mean().reset_index()
-df_avg.columns = ["Mes", "Promedio_5_Años"]
+# --- AÑOS DE COMPARACIÓN ---
+anio_actual = 2025
+anio_anterior = 2024
+ultimos_5 = list(range(2020, 2025))
 
-# AGRUPAR POR MES
-prec_2025 = df_2025.groupby(df_2025["Fecha"].dt.strftime("%B"))["Precipitaciones"].sum()
-prec_2024 = df_2024.groupby(df_2024["Fecha"].dt.strftime("%B"))["Precipitaciones"].sum()
+# --- EXTRACCIÓN DE DATOS ---
+actual = df[(df["Año"] == anio_actual) & (df["Mes"] == numero_mes)]["Precipitaciones"].values
+anterior = df[(df["Año"] == anio_anterior) & (df["Mes"] == numero_mes)]["Precipitaciones"].values
+promedio_5 = df[(df["Año"].isin(ultimos_5)) & (df["Mes"] == numero_mes)]["Precipitaciones"].mean()
 
-# ORDENAR MESES
-meses_orden = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
-               "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
-prec_2025 = prec_2025.reindex(meses_orden)
-prec_2024 = prec_2024.reindex(meses_orden)
-df_avg = df_avg.set_index("Mes").reindex([m.capitalize() for m in meses_orden])
+# --- MÉTRICAS PRINCIPALES ---
+st.markdown("### 📌 Resumen del mes")
+if len(actual) > 0:
+    val_act = actual[0]
+    val_ant = anterior[0] if len(anterior) > 0 else None
+    variacion = ((val_act - val_ant) / val_ant * 100) if val_ant else None
 
-# GRAFICO
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(meses_orden, prec_2025, label="2025", linestyle="-", marker="o")
-ax.plot(meses_orden, prec_2024, label="2024", linestyle="--", marker="o")
-ax.plot(meses_orden, df_avg["Promedio_5_Años"], label="Promedio 2020-2024", linestyle="-.", marker="o")
+    st.markdown(f"**Precipitaciones {mes_seleccionado} 2025:** {val_act:.1f} mm")
+    if val_ant is not None:
+        color_var = "green" if variacion >= 0 else "red"
+        st.markdown(f"**Precipitaciones {mes_seleccionado} 2024:** {val_ant:.1f} mm")
+        st.markdown(f"<span style='color:{color_var}; font-size: 22px; font-weight: bold;'>"
+                    f"Variación interanual:<br>{variacion:+.1f}%</span>", unsafe_allow_html=True)
+    st.markdown(f"**Promedio últimos 5 años:** {promedio_5:.1f} mm")
+else:
+    st.warning("No hay datos para este mes de 2025.")
 
-ax.set_title("Precipitaciones mensuales (mm)", fontsize=16)
-ax.set_xlabel("Mes")
+# --- GRÁFICO DE BARRAS ---
+st.markdown("### 📉 Comparación gráfica")
+fig_bar, ax = plt.subplots(figsize=(6, 4))
+labels = ["2025", "2024", "Prom. 5 años"]
+values = [val_act, val_ant if val_ant else 0, promedio_5]
+bars = ax.bar(labels, values, color=["#4a90e2", "#f5a623", "#7ed321"])
 ax.set_ylabel("Precipitaciones (mm)")
-ax.legend()
-ax.grid(True)
-plt.xticks(rotation=45)
+ax.set_title(f"Precipitaciones en {mes_seleccionado.capitalize()}")
+st.pyplot(fig_bar)
 
-# MOSTRAR EN STREAMLIT
-st.pyplot(fig)
-st.caption("Datos provenientes de hoja 'Pluviometria', archivo HEC mensuales 2025.xlsx")
+# --- GRÁFICO DE LÍNEAS ANUAL COMPARADO ---
+st.markdown("### 📈 Evolución anual comparada")
+
+# Preparar estructura de meses
+df_mes = df[df["Año"].isin(ultimos_5 + [anio_actual, anio_anterior])]
+pivot = df_mes.pivot_table(index="Mes", columns="Año", values="Precipitaciones")
+
+# Agregar promedio 5 años
+pivot["Prom_5"] = pivot[ultimos_5].mean(axis=1)
+
+fig_line, ax2 = plt.subplots(figsize=(7, 4))
+meses = list(meses_dict.values())
+
+ax2.plot(meses, pivot[anio_actual], marker="o", label="2025", color="#4a90e2")
+ax2.plot(meses, pivot[anio_anterior], marker="o", label="2024", color="#f5a623", linestyle="--")
+ax2.plot(meses, pivot["Prom_5"], marker="o", label="Prom. 2020-2024", color="#7ed321", linestyle="dotted")
+
+ax2.set_title("Precipitaciones enero - diciembre")
+ax2.set_ylabel("Precipitaciones (mm)")
+ax2.legend()
+ax2.grid(True, linestyle="--", alpha=0.5)
+st.pyplot(fig_line)
+
