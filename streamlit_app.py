@@ -1,99 +1,61 @@
-import streamlit as st
+from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.interpolate import make_interp_spline
-import numpy as np
-from datetime import datetime
+import streamlit as st
+from PIL import Image
 
-# Configuración de página
-st.set_page_config(page_title="Reporte Mensual Hidroeléctrica El Canelo", layout="wide")
+# CONFIGURACIÓN INICIAL
+st.set_page_config(layout="wide")
+logo = Image.open("logo.jpg")
+st.image(logo, width=200)
+st.title("📊 REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO")
 
-# Logo y título
-col1, col2 = st.columns([1, 8])
-with col1:
-    st.image("logo.jpg", width=120)
-with col2:
-    st.markdown("### REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO")
-
-# Selección de mes
-meses = {
-    "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
-    "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
-    "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
-}
-mes_seleccionado = st.selectbox("Selecciona el mes para el análisis", list(meses.keys()))
-mes_num = meses[mes_seleccionado]
-
-# Leer archivo Excel
+# CARGA DE DATOS
 excel_path = "HEC mensuales 2025.xlsx"
-df = pd.read_excel(excel_path, sheet_name="Pluviometria", skiprows=127, usecols="C:D")
+sheet_name = "Pluviometria"
+df_raw = pd.read_excel(excel_path, sheet_name=sheet_name, header=127, usecols="C:D")
 
-# Renombrar columnas
-df.columns = ["Fecha", "Precipitaciones"]
+# PROCESAMIENTO
+df_raw = df_raw.rename(columns={df_raw.columns[0]: "Fecha", df_raw.columns[1]: "Precipitaciones"})
+df_raw.dropna(inplace=True)
+df_raw["Fecha"] = pd.to_datetime(df_raw["Fecha"], errors="coerce")
+df_raw.dropna(subset=["Fecha"], inplace=True)
+df_raw["Año"] = df_raw["Fecha"].dt.year
+df_raw["Mes"] = df_raw["Fecha"].dt.strftime("%B")
 
-# Procesar fechas
-df["Fecha"] = pd.to_datetime(df["Fecha"], errors='coerce')
-df = df.dropna(subset=["Fecha", "Precipitaciones"])
-df["Año"] = df["Fecha"].dt.year
-df["Mes"] = df["Fecha"].dt.month
+# FILTROS
+df_2025 = df_raw[df_raw["Año"] == 2025]
+df_2024 = df_raw[df_raw["Año"] == 2024]
+df_5y = df_raw[df_raw["Año"].between(2020, 2024)]
 
-# Filtrar datos
-df_2025 = df[df["Año"] == 2025].groupby("Mes")["Precipitaciones"].sum()
-df_2024 = df[df["Año"] == 2024].groupby("Mes")["Precipitaciones"].sum()
-df_5y = df[df["Año"].between(2020, 2024)].groupby("Mes")["Precipitaciones"].mean()
+# PROMEDIOS
+df_avg = df_5y.groupby(df_5y["Fecha"].dt.strftime("%B"))["Precipitaciones"].mean().reset_index()
+df_avg.columns = ["Mes", "Promedio_5_Años"]
 
-# Asegurar índices de 1 a 12 para todos
-index_meses = range(1, 13)
-df_2025 = df_2025.reindex(index_meses, fill_value=0)
-df_2024 = df_2024.reindex(index_meses, fill_value=0)
-df_5y = df_5y.reindex(index_meses, fill_value=0)
+# AGRUPAR POR MES
+prec_2025 = df_2025.groupby(df_2025["Fecha"].dt.strftime("%B"))["Precipitaciones"].sum()
+prec_2024 = df_2024.groupby(df_2024["Fecha"].dt.strftime("%B"))["Precipitaciones"].sum()
 
-# Función de suavizado
-def suavizar_linea(x, y):
-    x_suave = np.linspace(x.min(), x.max(), 300)
-    spl = make_interp_spline(x, y, k=3)
-    y_suave = spl(x_suave)
-    return x_suave, y_suave
+# ORDENAR MESES
+meses_orden = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+               "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+prec_2025 = prec_2025.reindex(meses_orden)
+prec_2024 = prec_2024.reindex(meses_orden)
+df_avg = df_avg.set_index("Mes").reindex([m.capitalize() for m in meses_orden])
 
-# Plot
+# GRAFICO
 fig, ax = plt.subplots(figsize=(10, 5))
-x = np.array(list(index_meses))
+ax.plot(meses_orden, prec_2025, label="2025", linestyle="-", marker="o")
+ax.plot(meses_orden, prec_2024, label="2024", linestyle="--", marker="o")
+ax.plot(meses_orden, df_avg["Promedio_5_Años"], label="Promedio 2020-2024", linestyle="-.", marker="o")
 
-for serie, datos, color, label in zip(
-    ["2025", "2024", "Prom. 2020–2024"],
-    [df_2025, df_2024, df_5y],
-    ['blue', 'orange', 'green'],
-    ['Año 2025', 'Año 2024', 'Prom. 5 años']
-):
-    x_suave, y_suave = suavizar_linea(x, datos.values)
-    ax.plot(x_suave, y_suave, label=label, linewidth=2.5, color=color)
-
-ax.set_xticks(x)
-ax.set_xticklabels(
-    ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-)
+ax.set_title("Precipitaciones mensuales (mm)", fontsize=16)
+ax.set_xlabel("Mes")
 ax.set_ylabel("Precipitaciones (mm)")
-ax.set_title("Comparativo mensual de precipitaciones")
-ax.grid(True, linestyle='--', alpha=0.5)
 ax.legend()
+ax.grid(True)
+plt.xticks(rotation=45)
+
+# MOSTRAR EN STREAMLIT
 st.pyplot(fig)
-
-# Indicador mensual
-prec_2025_mes = df_2025[mes_num]
-prec_2024_mes = df_2024[mes_num]
-prom_5y_mes = df_5y[mes_num]
-variacion = prec_2025_mes - prom_5y_mes
-color_kpi = "green" if variacion >= 0 else "red"
-
-st.markdown(f"""
-### Precipitaciones acumuladas en **{mes_seleccionado.upper()}**:
-- **2025**: `{prec_2025_mes:.1f} mm`
-- **2024**: `{prec_2024_mes:.1f} mm`
-- **Prom. 2020–2024**: `{prom_5y_mes:.1f} mm`
-""")
-
-st.markdown(f"""
-<div style='font-size:18px; color:{color_kpi}; font-weight:bold;'>
-    Diferencia 2025 vs. Promedio: <br><span style='font-size:30px'>{variacion:+.1f} mm</span>
-</div>
-""", unsafe_allow_html=True)
+st.caption("Datos provenientes de hoja 'Pluviometria', archivo HEC mensuales 2025.xlsx")
