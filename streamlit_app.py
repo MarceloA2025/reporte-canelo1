@@ -1,104 +1,99 @@
-from PIL import Image
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.interpolate import make_interp_spline
+import numpy as np
+from datetime import datetime
 
-# Cargar logo
-logo = Image.open("logo.jpg")  # Reemplaza con tu ruta exacta
+# Configuración de página
+st.set_page_config(page_title="Reporte Mensual Hidroeléctrica El Canelo", layout="wide")
 
-# Configurar página
-st.set_page_config(
-    page_title="REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# CSS personalizado
-st.markdown("""
-    <style>
-        .main-title {
-            font-size:40px !important;
-            font-weight: bold;
-            color: #1E3D58;
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        .kpi-container {
-            display: flex;
-            justify-content: space-around;
-            margin-top: 30px;
-            margin-bottom: 30px;
-        }
-        .kpi {
-            background-color: #f8f9fa;
-            padding: 20px;
-            border-radius: 12px;
-            width: 30%;
-            text-align: center;
-            box-shadow: 2px 2px 12px #ddd;
-        }
-        .kpi-title {
-            font-size: 16px;
-            color: #6c757d;
-            margin-bottom: 5px;
-        }
-        .kpi-value {
-            font-size: 36px;
-            font-weight: bold;
-        }
-        .positive { color: green; }
-        .negative { color: red; }
-        .section-title {
-            font-size: 24px;
-            font-weight: bold;
-            margin-top: 20px;
-            margin-bottom: 10px;
-            color: #0c4a6e;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# Título con logo
-col1, col2, col3 = st.columns([1, 6, 1])
+# Logo y título
+col1, col2 = st.columns([1, 8])
 with col1:
-    st.image(logo, width=120)
+    st.image("logo.jpg", width=120)
 with col2:
-    st.markdown('<div class="main-title">REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO</div>', unsafe_allow_html=True)
+    st.markdown("### REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO")
 
-# KPIs de ejemplo
-kpis = {
-    "Precipitación mensual (mm)": {"valor": 89, "variación": -5},
-    "Generación eléctrica (MWh)": {"valor": 1025, "variación": 12},
-    "Ingresos netos (MM$)": {"valor": 75, "variación": -8}
+# Selección de mes
+meses = {
+    "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
+    "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
+    "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
 }
+mes_seleccionado = st.selectbox("Selecciona el mes para el análisis", list(meses.keys()))
+mes_num = meses[mes_seleccionado]
 
-# KPIs
-st.markdown('<div class="kpi-container">', unsafe_allow_html=True)
-for titulo, datos in kpis.items():
-    variacion = datos["variación"]
-    color = "positive" if variacion >= 0 else "negative"
-    st.markdown(f"""
-        <div class="kpi">
-            <div class="kpi-title">{titulo}</div>
-            <div class="kpi-value {color}">{datos["valor"]}</div>
-            <div class="{color}">{'▲' if variacion >= 0 else '▼'} {abs(variacion)}%</div>
-        </div>
-    """, unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+# Leer archivo Excel
+excel_path = "HEC mensuales 2025.xlsx"
+df = pd.read_excel(excel_path, sheet_name="Pluviometria", skiprows=127, usecols="C:D")
 
-# Datos desde Excel
-excel_path = "HEC mensuales 2025.xlsx"  # asegúrate de que esté en el repositorio
-df = pd.read_excel(excel_path, sheet_name="Datos_Resumen")
+# Renombrar columnas
+df.columns = ["Fecha", "Precipitaciones"]
 
-# Tabla de datos
-st.markdown('<div class="section-title">Datos Resumen</div>', unsafe_allow_html=True)
-st.dataframe(df)
+# Procesar fechas
+df["Fecha"] = pd.to_datetime(df["Fecha"], errors='coerce')
+df = df.dropna(subset=["Fecha", "Precipitaciones"])
+df["Año"] = df["Fecha"].dt.year
+df["Mes"] = df["Fecha"].dt.month
 
-# Gráfico
-st.markdown('<div class="section-title">Generación mensual (MWh)</div>', unsafe_allow_html=True)
-fig, ax = plt.subplots()
-ax.plot(df["Mes"], df["Generación (MWh)"], marker='o')
-ax.set_ylabel("MWh")
-ax.set_xlabel("Mes")
-ax.grid(True)
+# Filtrar datos
+df_2025 = df[df["Año"] == 2025].groupby("Mes")["Precipitaciones"].sum()
+df_2024 = df[df["Año"] == 2024].groupby("Mes")["Precipitaciones"].sum()
+df_5y = df[df["Año"].between(2020, 2024)].groupby("Mes")["Precipitaciones"].mean()
+
+# Asegurar índices de 1 a 12 para todos
+index_meses = range(1, 13)
+df_2025 = df_2025.reindex(index_meses, fill_value=0)
+df_2024 = df_2024.reindex(index_meses, fill_value=0)
+df_5y = df_5y.reindex(index_meses, fill_value=0)
+
+# Función de suavizado
+def suavizar_linea(x, y):
+    x_suave = np.linspace(x.min(), x.max(), 300)
+    spl = make_interp_spline(x, y, k=3)
+    y_suave = spl(x_suave)
+    return x_suave, y_suave
+
+# Plot
+fig, ax = plt.subplots(figsize=(10, 5))
+x = np.array(list(index_meses))
+
+for serie, datos, color, label in zip(
+    ["2025", "2024", "Prom. 2020–2024"],
+    [df_2025, df_2024, df_5y],
+    ['blue', 'orange', 'green'],
+    ['Año 2025', 'Año 2024', 'Prom. 5 años']
+):
+    x_suave, y_suave = suavizar_linea(x, datos.values)
+    ax.plot(x_suave, y_suave, label=label, linewidth=2.5, color=color)
+
+ax.set_xticks(x)
+ax.set_xticklabels(
+    ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+)
+ax.set_ylabel("Precipitaciones (mm)")
+ax.set_title("Comparativo mensual de precipitaciones")
+ax.grid(True, linestyle='--', alpha=0.5)
+ax.legend()
 st.pyplot(fig)
+
+# Indicador mensual
+prec_2025_mes = df_2025[mes_num]
+prec_2024_mes = df_2024[mes_num]
+prom_5y_mes = df_5y[mes_num]
+variacion = prec_2025_mes - prom_5y_mes
+color_kpi = "green" if variacion >= 0 else "red"
+
+st.markdown(f"""
+### Precipitaciones acumuladas en **{mes_seleccionado.upper()}**:
+- **2025**: `{prec_2025_mes:.1f} mm`
+- **2024**: `{prec_2024_mes:.1f} mm`
+- **Prom. 2020–2024**: `{prom_5y_mes:.1f} mm`
+""")
+
+st.markdown(f"""
+<div style='font-size:18px; color:{color_kpi}; font-weight:bold;'>
+    Diferencia 2025 vs. Promedio: <br><span style='font-size:30px'>{variacion:+.1f} mm</span>
+</div>
+""", unsafe_allow_html=True)
