@@ -56,6 +56,22 @@ col1.metric("Precipitaciones 2025", f"{prec_2025_mes:.1f} mm", f"{delta_2025_vs_
 col2.metric("Precipitaciones 2024", f"{prec_2024_mes:.1f} mm")
 col3.metric("Promedio últimos 5 años", f"{prom_ult_5_mes:.1f} mm", f"{delta_2025_vs_prom:+.1f} mm vs promedio")
 
+# --- Gráfico de barras para el mes seleccionado ---
+st.markdown(f"### 📊 Comparación del mes de {mes_seleccionado} en barra")
+
+fig_barras, ax2 = plt.subplots(figsize=(6, 4))
+categorias = ["2025", "2024", "Prom. 5 años"]
+valores = [prec_2025_mes, prec_2024_mes, prom_ult_5_mes]
+colores = ['green' if prec_2025_mes >= x else 'red' for x in [prec_2024_mes, prom_ult_5_mes, prom_ult_5_mes]]
+
+ax2.bar(categorias, valores, color=colores)
+ax2.set_ylabel("mm", fontsize=12)
+ax2.set_title(f"Precipitaciones comparadas ({mes_seleccionado})", fontsize=14)
+ax2.grid(axis='y', linestyle='--', alpha=0.5)
+for i, v in enumerate(valores):
+    ax2.text(i, v + 1, f"{v:.1f}", ha='center', fontsize=10)
+
+st.pyplot(fig_barras)
 # --- Gráfico de línea suavizada ---
 st.markdown("### 📈 Comparación mensual de precipitaciones (línea suavizada)")
 
@@ -73,23 +89,6 @@ ax.legend()
 ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
 st.pyplot(fig_linea)
-
-# --- Gráfico de barras para el mes seleccionado ---
-st.markdown(f"### 📊 Comparación del mes de {mes_seleccionado} en barra")
-
-fig_barras, ax2 = plt.subplots(figsize=(6, 4))
-categorias = ["2025", "2024", "Prom. 5 años"]
-valores = [prec_2025_mes, prec_2024_mes, prom_ult_5_mes]
-colores = ['green' if prec_2025_mes >= x else 'red' for x in [prec_2024_mes, prom_ult_5_mes, prom_ult_5_mes]]
-
-ax2.bar(categorias, valores, color=colores)
-ax2.set_ylabel("mm", fontsize=12)
-ax2.set_title(f"Precipitaciones comparadas ({mes_seleccionado})", fontsize=14)
-ax2.grid(axis='y', linestyle='--', alpha=0.5)
-for i, v in enumerate(valores):
-    ax2.text(i, v + 1, f"{v:.1f}", ha='center', fontsize=10)
-
-st.pyplot(fig_barras)
 
 # --- Placeholder para futuras secciones ---
 st.markdown("---")
