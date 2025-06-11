@@ -36,8 +36,8 @@ df["Año"] = df["Fecha"].dt.year
 df["Mes"] = df["Fecha"].dt.month_name()
 
 # Filtrar datos
-df_2025 = df[df["Año"] == 2025]
-df_2024 = df[df["Año"] == 2024]
+df_2025 = df[df["Año"] == 2025].reset_index(drop=True)
+df_2024 = df[df["Año"] == 2024].reset_index(drop=True)
 df_ult_5 = df[df["Año"].between(2020, 2024)].groupby(df["Fecha"].dt.month)["Precipitacion"].mean()
 
 # Obtener datos del mes seleccionado
@@ -80,4 +80,27 @@ st.markdown(f"### 📊 Comparación del mes de {mes_seleccionado} en barra")
 fig_barras, ax2 = plt.subplots(figsize=(6, 4))
 categorias = ["2025", "2024", "Prom. 5 años"]
 valores = [prec_2025_mes, prec_2024_mes, prom_ult_5_mes]
-colores = ['green' if prec_2025_mes
+colores = ['green' if prec_2025_mes >= x else 'red' for x in [prec_2024_mes, prom_ult_5_mes, prom_ult_5_mes]]
+
+ax2.bar(categorias, valores, color=colores)
+ax2.set_ylabel("mm", fontsize=12)
+ax2.set_title(f"Precipitaciones comparadas ({mes_seleccionado})", fontsize=14)
+ax2.grid(axis='y', linestyle='--', alpha=0.5)
+for i, v in enumerate(valores):
+    ax2.text(i, v + 1, f"{v:.1f}", ha='center', fontsize=10)
+
+st.pyplot(fig_barras)
+
+# --- Placeholder para futuras secciones ---
+st.markdown("---")
+st.markdown("## 🔧 Secciones en desarrollo")
+with st.expander("⚡ Generación de energía"):
+    st.write("Sección de generación en desarrollo...")
+with st.expander("💰 Ingresos y ventas"):
+    st.write("Sección de ingresos en desarrollo...")
+with st.expander("🔒 Cumplimiento normativo y seguridad"):
+    st.write("Sección de cumplimiento en desarrollo...")
+
+# --- Pie de página ---
+st.markdown("---")
+st.markdown("© 2025 Hidroeléctrica El Canelo S.A. | Reporte generado con Streamlit")
