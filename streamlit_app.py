@@ -1,139 +1,110 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib
-from PIL import Image
+import matplotlib.ticker as ticker
+from datetime import datetime
 
-matplotlib.use('Agg')
+# --- CONFIGURACIÓN GENERAL ---
+st.set_page_config(page_title="Reporte Mensual", layout="wide")
 
-# ---------------- CONFIGURACIÓN GENERAL ----------------
-st.set_page_config(page_title="Reporte Mensual", layout="centered")
-
-# ---------------- ESTILO GENERAL ----------------
+# --- ESTILOS PERSONALIZADOS ---
 st.markdown("""
     <style>
-        body {
-            background-color: #ffffff;
-            font-family: 'Segoe UI', sans-serif;
-        }
-        .logo {
-            display: flex;
-            justify-content: center;
+        .titulo {
+            font-size: 36px;
+            font-weight: 700;
+            color: #003366;
+            text-align: center;
             margin-bottom: 10px;
         }
-        .titulo {
-            font-size: 32px;
-            font-weight: bold;
-            text-align: center;
-            color: #003366;
-            margin-top: -10px;
-            letter-spacing: 1px;
-        }
-        .metric-container .stMetric {
-            text-align: center;
-        }
-        .metric-label {
+        .kpi-label {
             font-size: 16px;
-            font-weight: 500;
-            color: #666;
+            color: #666666;
         }
-        .metric-value {
-            font-size: 32px;
+        .kpi-value {
+            font-size: 30px;
             font-weight: bold;
+            line-height: 1.2;
         }
-        .delta-positive {
+        .metric-green {
             color: green;
-            font-weight: bold;
         }
-        .delta-negative {
+        .metric-red {
             color: red;
-            font-weight: bold;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGO Y TÍTULO ----------------
-logo = Image.open("logo.jpg")
-st.image(logo, use_column_width=False, width=180)
-st.markdown('<div class="titulo">REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO</div>', unsafe_allow_html=True)
-st.markdown("---")
+# --- LOGO Y TÍTULO ---
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.image("logo.jpg", width=200)
+    st.markdown("<h1 class='titulo'>REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO</h1>", unsafe_allow_html=True)
 
-# ---------------- SIDEBAR ----------------
-st.sidebar.header("📅 Selecciona Mes")
-meses = {
-    "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
-    "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
-    "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+# --- CARGA DE DATOS ---
+excel_path = "HEC mensuales 2025.xlsx"
+df = pd.read_excel(excel_path, sheet_name="Pluviometria", header=127, usecols="C:D")
+
+df = df.dropna()
+df.columns = ["Fecha", "Precipitacion"]
+df["Fecha"] = pd.to_datetime(df["Fecha"], format="%d-%m-%Y")
+
+df["Año"] = df["Fecha"].dt.year
+df["Mes"] = df["Fecha"].dt.month
+
+# --- SELECTOR DE MES ---
+mes_nombre = {
+    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+    5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+    9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
 }
-mes_nombre = st.sidebar.selectbox("Mes", list(meses.keys()))
-mes_numero = meses[mes_nombre] - 1  # índice para listas (0-based)
+mes_seleccionado = st.sidebar.selectbox("📅 Selecciona el mes", list(mes_nombre.values()))
+mes_num = list(mes_nombre.keys())[list(mes_nombre.values()).index(mes_seleccionado)]
 
-# ---------------- CARGA Y PROCESAMIENTO DE DATOS ----------------
-archivo = "HEC mensuales 2025.xlsx"
-df_raw = pd.read_excel(archivo, sheet_name="Pluviometria", header=127, usecols="C:D")
+# --- CÁLCULOS ---
+def calcular_precipitacion(mes, año):
+    return df[(df["Mes"] == mes) & (df["Año"] == año)]["Precipitacion"].sum()
 
-# Renombra columnas para facilitar el trabajo
-df_raw.columns = ["Fecha", "Precipitacion"]
+prec_2025 = calcular_precipitacion(mes_num, 2025)
+prec_2024 = calcular_precipitacion(mes_num, 2024)
+prec_5anios = df[(df["Mes"] == mes_num) & (df["Año"].between(2020, 2024))]["Precipitacion"].mean()
 
-# Filtra los años requeridos
-df_raw['Fecha'] = pd.to_datetime(df_raw['Fecha'])
-df_raw['Año'] = df_raw['Fecha'].dt.year
-df_raw['Mes'] = df_raw['Fecha'].dt.month
+delta_2025_vs_24 = prec_2025 - prec_2024
+delta_2025_vs_5a = prec_2025 - prec_5anios
 
-df_2025 = df_raw[df_raw["Año"] == 2025]
-df_2024 = df_raw[df_raw["Año"] == 2024]
-df_5anios = df_raw[df_raw["Año"].between(2020, 2024)]
-
-# Calcular promedio 5 años por mes
-promedio_5a = df_5anios.groupby("Mes")["Precipitacion"].mean()
-
-# Extrae valores para el mes seleccionado
-prec_2025_mes = df_2025[df_2025["Mes"] == meses[mes_nombre]]["Precipitacion"].sum()
-prec_2024_mes = df_2024[df_2024["Mes"] == meses[mes_nombre]]["Precipitacion"].sum()
-prec_prom_mes = promedio_5a.loc[meses[mes_nombre]]
-
-delta_2025_vs_24 = prec_2025_mes - prec_2024_mes
-delta_2025_vs_prom = prec_2025_mes - prec_prom_mes
-
-# ---------------- KPIs ----------------
-st.subheader("📊 Precipitaciones Mensuales")
-
+# --- KPIs ---
 col1, col2, col3 = st.columns(3)
 
-col1.metric(label="Año 2025", value=f"{prec_2025_mes:.1f} mm", delta=f"{delta_2025_vs_24:+.1f} mm")
-col2.metric(label="Año 2024", value=f"{prec_2024_mes:.1f} mm")
-col3.metric(label="Prom. 2020–2024", value=f"{prec_prom_mes:.1f} mm", delta=f"{delta_2025_vs_prom:+.1f} mm")
+col1.metric(label="🌧️ Precipitaciones 2025", value=f"{prec_2025:.1f} mm", delta=f"{delta_2025_vs_24:+.1f} mm")
+col2.metric(label="📆 Año 2024", value=f"{prec_2024:.1f} mm", delta="")
+col3.metric(label="📊 Promedio 2020-2024", value=f"{prec_5anios:.1f} mm", delta=f"{delta_2025_vs_5a:+.1f} mm")
 
-# ---------------- GRÁFICO ----------------
-st.markdown("### 📈 Comparación de Precipitaciones Acumuladas")
-
+# --- GRÁFICO DE LÍNEA SUAVIZADO ---
 fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(df_2025["Mes"], df_2025["Precipitacion"].groupby(df_2025["Mes"]).sum(), label="2025", linestyle='--', linewidth=2)
-ax.plot(df_2024["Mes"], df_2024["Precipitacion"].groupby(df_2024["Mes"]).sum(), label="2024", linestyle='--', linewidth=2)
-ax.plot(promedio_5a.index, promedio_5a.values, label="Prom. 2020–2024", linestyle='--', linewidth=2)
 
-ax.set_xticks(range(1, 13))
-ax.set_xticklabels(list(meses.keys()), rotation=45)
-ax.set_ylabel("Precipitación (mm)")
+for año in [2025, 2024]:
+    datos = df[df["Año"] == año].groupby("Mes")["Precipitacion"].sum()
+    ax.plot(datos.index, datos.values, linestyle='-', marker='o', label=str(año))
+
+promedios = df[df["Año"].between(2020, 2024)].groupby("Mes")["Precipitacion"].mean()
+ax.plot(promedios.index, promedios.values, linestyle='--', marker='s', label="Promedio 2020-2024")
+
+ax.set_title("📈 Precipitaciones Mensuales Comparadas", fontsize=14)
 ax.set_xlabel("Mes")
-ax.grid(True, alpha=0.3)
+ax.set_ylabel("Precipitación (mm)")
+ax.set_xticks(range(1, 13))
+ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: mes_nombre.get(int(x), "")))
+ax.grid(True, linestyle='--', alpha=0.5)
 ax.legend()
-ax.set_facecolor("white")
-fig.patch.set_facecolor("white")
 
 st.pyplot(fig)
 
-# ---------------- ESPACIOS PARA FUTURAS SECCIONES ----------------
-st.markdown("---")
-with st.expander("⚡ Generación Eléctrica (Próximamente)"):
-    st.write("Se mostrará información de generación mensual y comparaciones.")
+# --- FUTURAS SECCIONES ---
+with st.expander("⚡ Generación de energía (próximamente)"):
+    st.info("Sección en desarrollo para reportar generación mensual de energía.")
 
-with st.expander("💰 Ingresos y Mercado (Próximamente)"):
-    st.write("Análisis de ingresos mensuales y precios de mercado.")
+with st.expander("💰 Ingresos y ventas (próximamente)"):
+    st.info("Resumen financiero de ingresos y ventas por mes.")
 
-with st.expander("🔒 Seguridad y Normativa (Próximamente)"):
-    st.write("Indicadores de cumplimiento y novedades regulatorias.")
-
-# ---------------- FOOTER ----------------
-st.markdown("---")
-st.markdown("Reporte generado automáticamente | © 2025 Hidroeléctrica El Canelo", unsafe_allow_html=True)
+with st.expander("🔒 Cumplimiento normativo (próximamente)"):
+    st.info("Registro de cumplimiento con normativa SEC, DS327, etc.")
