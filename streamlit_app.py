@@ -103,4 +103,4 @@ with st.expander("🔒 Cumplimiento normativo y seguridad"):
 
 # --- Pie de página ---
 st.markdown("---")
-st.markdown("© 2025 Hidroeléctrica El Canelo S.A. | Reporte generado con Streamlit")
+st.markdown("© 2025 Hidroeléctrica El Canelo S.A. | Marcelo Arriagada")
