@@ -11,7 +11,7 @@ col_logo, col_titulo = st.columns([1, 8])
 with col_logo:
     st.image("logo.jpg", width=180)
 with col_titulo:
-    st.markdown("<h1 style='font-size: 42px; margin-bottom: 0;'>REPORTE MENSUAL</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='font-size: 48px; margin-bottom: 0;'>REPORTE MENSUAL</h1>", unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -72,6 +72,7 @@ for i, v in enumerate(valores):
     ax2.text(i, v + 1, f"{v:.1f}", ha='center', fontsize=10)
 
 st.pyplot(fig_barras)
+
 # --- Gráfico de línea suavizada ---
 st.markdown("### 📈 Comparación mensual de precipitaciones (línea suavizada)")
 
