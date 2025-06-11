@@ -11,7 +11,7 @@ col_logo, col_title = st.columns([1, 9])
 with col_logo:
     st.image("logo.jpg", width=180)
 with col_title:
-    st.markdown("<h1 style='font-size: 48px; margin-bottom: 0;'>REPORTE MENSUAL - 📅</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='font-size: 48px; margin-bottom: 0;'>REPORTE MENSUAL {mes_seleccionado} ", unsafe_allow_html=True)
 
 # --- SIDEBAR: Selector de mes ---
 meses = {
