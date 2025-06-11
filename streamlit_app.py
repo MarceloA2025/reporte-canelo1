@@ -54,14 +54,14 @@ col3.metric("Promedio 2020-2024", f"{prom_ult_5_mes:.1f} mm", f"{delta_2025_vs_p
 
 # --- Gráfico de Barras ---
 st.markdown(f"### 📊 Precipitaciones - {mes_seleccionado}")
-fig_bar, ax_bar = plt.subplots(figsize=(6, 3))
+fig_bar, ax_bar = plt.subplots(figsize=(6, 1.5))
 labels = ["2025", "2024", "Prom. 5 años"]
 valores = [prec_2025_mes, prec_2024_mes, prom_ult_5_mes]
 colores = ['green' if prec_2025_mes >= x else 'red' for x in [prec_2024_mes, prom_ult_5_mes, prom_ult_5_mes]]
 ax_bar.bar(labels, valores, color=colores)
 ax_bar.set_ylabel("mm")
 ax_bar.set_title(f"Comparación mensual ({mes_seleccionado})")
-ax_bar.grid(axis='y', linestyle='--', alpha=0.5)
+ax_bar.grid(axis='y', linestyle='--', alpha=0.35)
 for i, v in enumerate(valores):
     ax_bar.text(i, v + 1, f"{v:.1f}", ha='center')
 st.pyplot(fig_bar)
