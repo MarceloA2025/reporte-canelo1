@@ -59,7 +59,7 @@ col3.metric("Promedio últimos 5 años", f"{prom_ult_5_mes:.1f} mm", f"{delta_20
 # --- Gráfico de barras para el mes seleccionado ---
 st.markdown(f"### 📊 Comparación del mes de {mes_seleccionado} en barra")
 
-fig_barras, ax2 = plt.subplots(figsize=(6, 4))
+fig_barras, ax2 = plt.subplots(figsize=(6, 3))
 categorias = ["2025", "2024", "Prom. 5 años"]
 valores = [prec_2025_mes, prec_2024_mes, prom_ult_5_mes]
 colores = ['green' if prec_2025_mes >= x else 'red' for x in [prec_2024_mes, prom_ult_5_mes, prom_ult_5_mes]]
