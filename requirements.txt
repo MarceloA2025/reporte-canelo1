@@ -1,4 +1,5 @@
-streamlit
+echo "streamlit
 pandas
 matplotlib
-xlsxwriter
+openpyxl
+xlsxwriter" > requirements.txt
