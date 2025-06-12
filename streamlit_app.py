@@ -1,107 +1,97 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
+from PIL import Image
 
-# Configurar página
-st.set_page_config(page_title="Reporte Mensual", layout="wide")
+# Configuración general
+st.set_page_config(
+    page_title="Reporte Mensual - Hidroeléctrica El Canelo",
+    layout="wide",
+    page_icon="📊"
+)
 
-# --- ENCABEZADO CON LOGO Y TÍTULO ---
-col_logo, col_titulo = st.columns([1, 8])
-with col_logo:
-    st.image("logo.jpg", width=180)
-with col_titulo:
-    st.markdown("<h1 style='font-size: 42px; margin-bottom: 0;'>REPORTE MENSUAL</h1>", unsafe_allow_html=True)
+# Insertar logo
+st.markdown(
+    """
+    <style>
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .logo-container img {
+            max-height: 90px;
+        }
+        .header-title {
+            font-size: 32px;
+            font-weight: bold;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-st.markdown("---")
+col1, col2 = st.columns([1, 8])
+with col1:
+    st.image("logo.jpg", use_column_width="auto")
+with col2:
+    st.markdown("<div class='header-title'>REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO</div>", unsafe_allow_html=True)
 
-# --- SIDEBAR: Selección de mes ---
-meses = {
-    "Enero": 0, "Febrero": 1, "Marzo": 2, "Abril": 3,
-    "Mayo": 4, "Junio": 5, "Julio": 6, "Agosto": 7,
-    "Septiembre": 8, "Octubre": 9, "Noviembre": 10, "Diciembre": 11
-}
-st.sidebar.header("📅 Seleccionar mes")
-mes_seleccionado = st.sidebar.selectbox("Mes", list(meses.keys()))
-idx_mes = meses[mes_seleccionado]
+# Cargar archivo Excel
+excel_path = "HEC 0125-Marcelo_A.xlsx"
+sheet_name = "Datos_Resumen"
 
-# --- Cargar datos desde Excel ---
-archivo_excel = "HEC mensuales 2025.xlsx"
-df_raw = pd.read_excel(archivo_excel, sheet_name="Pluviometria", skiprows=127, usecols="C:D")
+try:
+    df = pd.read_excel(excel_path, sheet_name=sheet_name)
+except Exception as e:
+    st.error(f"No se pudo cargar la hoja '{sheet_name}'. Verifica que exista en el archivo Excel.")
+    st.stop()
 
-# --- Preparar datos por año ---
-df = df_raw.rename(columns={df_raw.columns[0]: "Fecha", df_raw.columns[1]: "Precipitacion"})
-df["Fecha"] = pd.to_datetime(df["Fecha"])
-df["Año"] = df["Fecha"].dt.year
-df["Mes"] = df["Fecha"].dt.month_name()
+# Conversión de fechas
+df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
+df = df.dropna(subset=["Fecha"])
+df = df.sort_values("Fecha")
 
-# Filtrar datos
-df_2025 = df[df["Año"] == 2025].reset_index(drop=True)
-df_2024 = df[df["Año"] == 2024].reset_index(drop=True)
-df_ult_5 = df[df["Año"].between(2020, 2024)].groupby(df["Fecha"].dt.month)["Precipitacion"].mean()
+# Gráfico de precipitaciones
+st.markdown("## 🌧️ Precipitaciones Mensuales")
 
-# Obtener datos del mes seleccionado
-prec_2025_mes = df_2025.iloc[idx_mes]["Precipitacion"] if idx_mes < len(df_2025) else 0
-prec_2024_mes = df_2024.iloc[idx_mes]["Precipitacion"] if idx_mes < len(df_2024) else 0
-prom_ult_5_mes = df_ult_5.iloc[idx_mes] if idx_mes < len(df_ult_5) else 0
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.plot(df["Fecha"], df["Precipitaciones (mm)"], marker="o", linestyle="-", color="#1f77b4")
+ax.set_title("Precipitaciones acumuladas por mes", fontsize=14)
+ax.set_xlabel("Fecha", fontsize=12)
+ax.set_ylabel("Precipitación (mm)", fontsize=12)
+ax.grid(True, linestyle="--", alpha=0.5)
+fig.patch.set_facecolor('white')
+st.pyplot(fig)
 
-# Calcular variaciones
-delta_2025_vs_24 = prec_2025_mes - prec_2024_mes
-delta_2025_vs_prom = prec_2025_mes - prom_ult_5_mes
-
-# --- Mostrar KPIs ---
-st.markdown(f"## 📊 Indicadores del mes de {mes_seleccionado}")
+# KPI de precipitaciones comparadas
 col1, col2, col3 = st.columns(3)
-col1.metric("Precipitaciones 2025", f"{prec_2025_mes:.1f} mm", f"{delta_2025_vs_24:+.1f} mm vs 2024")
-col2.metric("Precipitaciones 2024", f"{prec_2024_mes:.1f} mm")
-col3.metric("Promedio últimos 5 años", f"{prom_ult_5_mes:.1f} mm", f"{delta_2025_vs_prom:+.1f} mm vs promedio")
+def kpi_box(title, value, diff):
+    color = "green" if diff >= 0 else "red"
+    return f"""
+    <div style='text-align: center; padding: 15px; border-radius: 10px; background-color: #f9f9f9; box-shadow: 1px 1px 5px rgba(0,0,0,0.1);'>
+        <div style='font-size: 14px; color: gray;'>{title}</div>
+        <div style='font-size: 32px; font-weight: bold;'>{value} mm</div>
+        <div style='font-size: 16px; color: {color};'>{'▲' if diff > 0 else '▼'} {abs(diff)} mm</div>
+    </div>
+    """
 
-# --- Gráfico de línea suavizada ---
-st.markdown("### 📈 Comparación mensual de precipitaciones (línea suavizada)")
+last = df.iloc[-1]["Precipitaciones (mm)"]
+prev = df.iloc[-2]["Precipitaciones (mm)"]
+prom5 = df["Precipitaciones (mm)"].tail(5).mean()
 
-fig_linea, ax = plt.subplots(figsize=(10, 4))
-meses_grafico = df_2025["Fecha"].dt.strftime('%b')
+with col1:
+    st.markdown(kpi_box("Mes actual", f"{last:.1f}", last - prev), unsafe_allow_html=True)
+with col2:
+    st.markdown(kpi_box("Mes anterior", f"{prev:.1f}", prev - prom5), unsafe_allow_html=True)
+with col3:
+    st.markdown(kpi_box("Prom. últimos 5 meses", f"{prom5:.1f}", last - prom5), unsafe_allow_html=True)
 
-ax.plot(meses_grafico, df_2025["Precipitacion"], label="2025", linestyle='-', marker='o')
-ax.plot(meses_grafico, df_2024["Precipitacion"], label="2024", linestyle='--', marker='o')
-ax.plot(meses_grafico, df_ult_5.values, label="Prom. últimos 5 años", linestyle='-.', marker='o')
-
-ax.set_title("Precipitaciones mensuales (mm)", fontsize=16)
-ax.set_ylabel("mm", fontsize=12)
-ax.grid(True, linestyle='--', alpha=0.5)
-ax.legend()
-ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-
-st.pyplot(fig_linea)
-
-# --- Gráfico de barras para el mes seleccionado ---
-st.markdown(f"### 📊 Comparación del mes de {mes_seleccionado} en barra")
-
-fig_barras, ax2 = plt.subplots(figsize=(6, 4))
-categorias = ["2025", "2024", "Prom. 5 años"]
-valores = [prec_2025_mes, prec_2024_mes, prom_ult_5_mes]
-colores = ['green' if prec_2025_mes >= x else 'red' for x in [prec_2024_mes, prom_ult_5_mes, prom_ult_5_mes]]
-
-ax2.bar(categorias, valores, color=colores)
-ax2.set_ylabel("mm", fontsize=12)
-ax2.set_title(f"Precipitaciones comparadas ({mes_seleccionado})", fontsize=14)
-ax2.grid(axis='y', linestyle='--', alpha=0.5)
-for i, v in enumerate(valores):
-    ax2.text(i, v + 1, f"{v:.1f}", ha='center', fontsize=10)
-
-st.pyplot(fig_barras)
-
-# --- Placeholder para futuras secciones ---
+# Pie de página
 st.markdown("---")
-st.markdown("## 🔧 Secciones en desarrollo")
-with st.expander("⚡ Generación de energía"):
-    st.write("Sección de generación en desarrollo...")
-with st.expander("💰 Ingresos y ventas"):
-    st.write("Sección de ingresos en desarrollo...")
-with st.expander("🔒 Cumplimiento normativo y seguridad"):
-    st.write("Sección de cumplimiento en desarrollo...")
+st.caption("Reporte generado automáticamente - Hidroeléctrica El Canelo S.A.")
 
-# --- Pie de página ---
-st.markdown("---")
-st.markdown("© 2025 Hidroeléctrica El Canelo S.A. | Reporte generado con Streamlit")
+
+
 
