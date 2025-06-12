@@ -151,4 +151,3 @@ with st.expander("🔒 Cumplimiento normativo y seguridad"):
 # === PIE DE PAGINA ===
 st.markdown("---")
 st.markdown("© 2025 Hidroeléctrica El Canelo S.A. | Marcelo Arriagada")
-
