@@ -33,22 +33,9 @@ df["Fecha"] = pd.to_datetime(df["Fecha"])
 df["Año"] = df["Fecha"].dt.year
 df["Mes"] = df["Fecha"].dt.month
 
-df_hist = pd.read_excel(archivo_excel, sheet_name="Datos Historicos")
-
-# Buscar columna que contenga la palabra 'fecha'
-col_fecha = None
-for col in df_hist.columns:
-    if "Fecha" in col.lower():
-        col_fecha = col
-        break
-
-# Validar y renombrar
-if col_fecha:
-    df_hist.rename(columns={col_fecha: "Fecha"}, inplace=True)
-else:
-    st.error("❌ Error: No se encontró una columna que contenga la palabra 'fecha' en la hoja 'Datos Historicos'.")
-    st.stop()
-
+# === Datos históricos de generación y ventas ===
+df_hist_raw = pd.read_excel(archivo_excel, sheet_name="Datos Historicos", skiprows=195, usecols="C:G")
+df_hist = df_hist_raw.rename(columns={df_hist_raw.columns[0]: "Fecha"})
 df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors='coerce')
 df_hist = df_hist.dropna(subset=["Fecha"])
 df_hist["Año"] = df_hist["Fecha"].dt.year
@@ -127,19 +114,3 @@ ax_line.grid(True, linestyle='--', alpha=0.5)
 ax_line.legend()
 ax_line.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 st.pyplot(fig_line)
-
-
-# === SECCIONES FUTURAS ===
-st.markdown("---")
-st.markdown("## 🔧 Secciones en desarrollo")
-with st.expander("⚡ Generación de energía"):
-    st.write("Sección de generación en desarrollo...")
-with st.expander("💰 Ingresos y ventas"):
-    st.write("Sección de ingresos en desarrollo...")
-with st.expander("🔒 Cumplimiento normativo y seguridad"):
-    st.write("Sección de cumplimiento en desarrollo...")
-
-# === PIE DE PAGINA ===
-st.markdown("---")
-st.markdown("© 2025 Hidroeléctrica El Canelo S.A. | Marcelo Arriagada")
-
