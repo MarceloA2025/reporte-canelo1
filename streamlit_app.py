@@ -33,7 +33,7 @@ df["Fecha"] = pd.to_datetime(df["Fecha"])
 df["Año"] = df["Fecha"].dt.year
 df["Mes"] = df["Fecha"].dt.month
 
-# Subconjuntos por año
+# Subconjuntos por año para precipitaciones
 df_2025 = df[df["Año"] == 2025].reset_index(drop=True)
 df_2024 = df[df["Año"] == 2024].reset_index(drop=True)
 df_ult_5 = df[df["Año"].between(2020, 2024)].groupby("Mes")["Precipitacion"].mean()
@@ -59,7 +59,7 @@ st.markdown(f"### 📊 Precipitaciones - {mes_seleccionado}")
 fig_bar, ax_bar = plt.subplots(figsize=(6, 3))
 labels = ["2025", "2024", "Prom. 5 años"]
 valores = [prec_2025_mes, prec_2024_mes, prom_ult_5_mes]
-colores = ['#1f77b4', '#ff7f0e', '#2ca02c']  # Azul, naranjo, verde institucional
+colores = ["#1f77b4", "#ff7f0e", "#2ca02c"]
 ax_bar.bar(labels, valores, color=colores, width=0.5)
 ax_bar.set_ylabel("mm")
 ax_bar.set_title(f"Comparación mensual ({mes_seleccionado})")
@@ -73,7 +73,6 @@ st.markdown("### 📈 Evolución mensual de precipitaciones")
 fig_line, ax_line = plt.subplots(figsize=(10, 4))
 meses_etiquetas = df_2025["Fecha"].dt.strftime('%b')
 
-# Suavizar series con rolling promedio de 2 meses
 serie_2025 = df_2025["Precipitacion"].rolling(window=2, min_periods=1).mean()
 serie_2024 = df_2024["Precipitacion"].rolling(window=2, min_periods=1).mean()
 serie_5 = pd.Series(df_ult_5.values).rolling(window=2, min_periods=1).mean()
@@ -102,4 +101,5 @@ with st.expander("🔒 Cumplimiento normativo y seguridad"):
 # === PIE DE PAGINA ===
 st.markdown("---")
 st.markdown("© 2025 Hidroeléctrica El Canelo S.A. | Marcelo Arriagada")
+
 
