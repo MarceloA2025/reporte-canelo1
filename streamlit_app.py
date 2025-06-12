@@ -6,7 +6,7 @@ st.set_page_config(page_title="Reporte Mensual", layout="wide")
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-import numpy as np  # Para suavizar datos con np.polyfit si se requiere
+import numpy as np
 
 # === SIDEBAR: SELECCION DE MES ===
 meses = {
@@ -23,7 +23,7 @@ col_logo, col_title = st.columns([1, 9])
 with col_logo:
     st.image("logo.jpg", width=180)
 with col_title:
-    st.markdown(f"<h1 style='font-size: 48px; margin-bottom: 0;'>REPORTE MENSUAL {mes_seleccionado.upper()} 2025</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='font-size: 48px; margin-bottom: 0;'>Reporte Mensual {mes_seleccionado} 2025</h1>", unsafe_allow_html=True)
 
 # === CARGA Y PROCESAMIENTO DE DATOS ===
 archivo_excel = "HEC mensuales 2025.xlsx"
@@ -39,7 +39,6 @@ df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"])
 df_hist["Año"] = df_hist["Fecha"].dt.year
 df_hist["Mes"] = df_hist["Fecha"].dt.month
 
-# === Subconjuntos para generación y ventas ===
 df_hist_2025 = df_hist[df_hist["Año"] == 2025].reset_index(drop=True)
 df_hist_2024 = df_hist[df_hist["Año"] == 2024].reset_index(drop=True)
 
@@ -48,17 +47,14 @@ gen_2024 = df_hist_2024.iloc[idx_mes]["Generación Bornes (kWh)"] if idx_mes < l
 venta_2025 = df_hist_2025.iloc[idx_mes]["Facturacion (USD$)"] if idx_mes < len(df_hist_2025) else 0
 venta_2024 = df_hist_2024.iloc[idx_mes]["Facturacion (USD$)"] if idx_mes < len(df_hist_2024) else 0
 
-# Subconjuntos por año para precipitaciones
 df_2025 = df[df["Año"] == 2025].reset_index(drop=True)
 df_2024 = df[df["Año"] == 2024].reset_index(drop=True)
 df_ult_5 = df[df["Año"].between(2020, 2024)].groupby("Mes")["Precipitacion"].mean()
 
-# === VALORES PARA EL MES SELECCIONADO ===
 prec_2025_mes = df_2025.iloc[idx_mes]["Precipitacion"] if idx_mes < len(df_2025) else 0
 prec_2024_mes = df_2024.iloc[idx_mes]["Precipitacion"] if idx_mes < len(df_2024) else 0
 prom_ult_5_mes = df_ult_5.iloc[idx_mes] if idx_mes < len(df_ult_5) else 0
 
-# === COMPARATIVAS ===
 delta_2025_vs_24 = prec_2025_mes - prec_2024_mes
 delta_2025_vs_prom = prec_2025_mes - prom_ult_5_mes
 delta_gen = gen_2025 - gen_2024
@@ -79,10 +75,10 @@ col5.metric("Ventas 2025", f"${venta_2025:,.0f}", f"{delta_venta:+,.0f} USD vs 2
 st.markdown(f"### 📊 Precipitaciones - {mes_seleccionado}")
 labels = ["2025", "2024", "Prom. 5 años"]
 valores = [prec_2025_mes, prec_2024_mes, prom_ult_5_mes]
-colores = ["#005DAA", "#A0A0A0", "#2E8B57"]
+colores = ["#1f77b4", "#ff7f0e", "#2ca02c"]
 y_max = max(valores) * 1.25
 
-fig_bar, ax_bar = plt.subplots(figsize=(6, 1.8))
+fig_bar, ax_bar = plt.subplots(figsize=(6, 2))
 bars = ax_bar.bar(labels, valores, color=colores, width=0.4)
 for bar, valor in zip(bars, valores):
     ax_bar.text(bar.get_x() + bar.get_width()/2, valor + y_max*0.02, f"{valor:.1f}", ha='center', va='bottom', fontsize=10)
@@ -154,3 +150,4 @@ with st.expander("🔒 Cumplimiento normativo y seguridad"):
 # === PIE DE PAGINA ===
 st.markdown("---")
 st.markdown("© 2025 Hidroeléctrica El Canelo S.A. | Marcelo Arriagada")
+
