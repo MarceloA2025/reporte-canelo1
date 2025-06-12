@@ -33,6 +33,21 @@ df["Fecha"] = pd.to_datetime(df["Fecha"])
 df["Año"] = df["Fecha"].dt.year
 df["Mes"] = df["Fecha"].dt.month
 
+# === Datos históricos de generación y ventas ===
+df_hist = pd.read_excel(archivo_excel, sheet_name="Datos historicos")
+df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"])
+df_hist["Año"] = df_hist["Fecha"].dt.year
+df_hist["Mes"] = df_hist["Fecha"].dt.month
+
+# === Subconjuntos para generación y ventas ===
+df_hist_2025 = df_hist[df_hist["Año"] == 2025].reset_index(drop=True)
+df_hist_2024 = df_hist[df_hist["Año"] == 2024].reset_index(drop=True)
+
+gen_2025 = df_hist_2025.iloc[idx_mes]["Generación Bornes (kWh)"] if idx_mes < len(df_hist_2025) else 0
+gen_2024 = df_hist_2024.iloc[idx_mes]["Generación Bornes (kWh)"] if idx_mes < len(df_hist_2024) else 0
+venta_2025 = df_hist_2025.iloc[idx_mes]["Facturacion (USD$)"] if idx_mes < len(df_hist_2025) else 0
+venta_2024 = df_hist_2024.iloc[idx_mes]["Facturacion (USD$)"] if idx_mes < len(df_hist_2024) else 0
+
 # Subconjuntos por año para precipitaciones
 df_2025 = df[df["Año"] == 2025].reset_index(drop=True)
 df_2024 = df[df["Año"] == 2024].reset_index(drop=True)
@@ -46,6 +61,8 @@ prom_ult_5_mes = df_ult_5.iloc[idx_mes] if idx_mes < len(df_ult_5) else 0
 # === COMPARATIVAS ===
 delta_2025_vs_24 = prec_2025_mes - prec_2024_mes
 delta_2025_vs_prom = prec_2025_mes - prom_ult_5_mes
+delta_gen = gen_2025 - gen_2024
+delta_venta = venta_2025 - venta_2024
 
 # === INDICADORES KPI ===
 st.markdown(f"## 📊 Indicadores de {mes_seleccionado}")
@@ -54,7 +71,11 @@ col1.metric("Precipitaciones 2025", f"{prec_2025_mes:.1f} mm", f"{delta_2025_vs_
 col2.metric("Precipitaciones 2024", f"{prec_2024_mes:.1f} mm")
 col3.metric("Promedio 2020-2024", f"{prom_ult_5_mes:.1f} mm", f"{delta_2025_vs_prom:+.1f} mm vs promedio")
 
-# === GRAFICO DE BARRAS COMPARATIVAS ===
+col4, col5 = st.columns(2)
+col4.metric("Generación 2025", f"{gen_2025:,.0f} kWh", f"{delta_gen:+,.0f} kWh vs 2024")
+col5.metric("Ventas 2025", f"${venta_2025:,.0f}", f"{delta_venta:+,.0f} USD vs 2024")
+
+# === GRAFICO DE BARRAS COMPARATIVAS DE PRECIPITACIONES ===
 st.markdown(f"### 📊 Precipitaciones - {mes_seleccionado}")
 fig_bar, ax_bar = plt.subplots(figsize=(6, 3))
 labels = ["2025", "2024", "Prom. 5 años"]
@@ -68,7 +89,7 @@ for i, v in enumerate(valores):
     ax_bar.text(i, v + 1, f"{v:.1f}", ha='center')
 st.pyplot(fig_bar)
 
-# === GRAFICO DE LINEAS SUAVIZADAS ===
+# === GRAFICO DE LINEAS SUAVIZADAS DE PRECIPITACIONES ===
 st.markdown("### 📈 Evolución mensual de precipitaciones")
 fig_line, ax_line = plt.subplots(figsize=(10, 4))
 meses_etiquetas = df_2025["Fecha"].dt.strftime('%b')
@@ -88,6 +109,35 @@ ax_line.legend()
 ax_line.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 st.pyplot(fig_line)
 
+# === GRAFICO DE LINEAS SUAVIZADAS DE GENERACION ===
+st.markdown("### ⚡ Evolución mensual de generación (kWh)")
+fig_gen, ax_gen = plt.subplots(figsize=(10, 4))
+serie_gen_2025 = df_hist_2025["Generación Bornes (kWh)"].rolling(window=2, min_periods=1).mean()
+serie_gen_2024 = df_hist_2024["Generación Bornes (kWh)"].rolling(window=2, min_periods=1).mean()
+meses_hist = df_hist_2025["Fecha"].dt.strftime('%b')
+
+ax_gen.plot(meses_hist, serie_gen_2025, label="2025", linestyle='-', marker='o')
+ax_gen.plot(meses_hist, serie_gen_2024, label="2024", linestyle='--', marker='o')
+ax_gen.set_title("Generación mensual (kWh)", fontsize=16)
+ax_gen.set_ylabel("kWh", fontsize=12)
+ax_gen.grid(True, linestyle='--', alpha=0.5)
+ax_gen.legend()
+st.pyplot(fig_gen)
+
+# === GRAFICO DE LINEAS SUAVIZADAS DE FACTURACION ===
+st.markdown("### 💰 Evolución mensual de facturación (USD$)")
+fig_venta, ax_venta = plt.subplots(figsize=(10, 4))
+serie_venta_2025 = df_hist_2025["Facturacion (USD$)"].rolling(window=2, min_periods=1).mean()
+serie_venta_2024 = df_hist_2024["Facturacion (USD$)"].rolling(window=2, min_periods=1).mean()
+
+ax_venta.plot(meses_hist, serie_venta_2025, label="2025", linestyle='-', marker='o')
+ax_venta.plot(meses_hist, serie_venta_2024, label="2024", linestyle='--', marker='o')
+ax_venta.set_title("Facturación mensual (USD$)", fontsize=16)
+ax_venta.set_ylabel("USD$", fontsize=12)
+ax_venta.grid(True, linestyle='--', alpha=0.5)
+ax_venta.legend()
+st.pyplot(fig_venta)
+
 # === SECCIONES FUTURAS ===
 st.markdown("---")
 st.markdown("## 🔧 Secciones en desarrollo")
@@ -101,5 +151,4 @@ with st.expander("🔒 Cumplimiento normativo y seguridad"):
 # === PIE DE PAGINA ===
 st.markdown("---")
 st.markdown("© 2025 Hidroeléctrica El Canelo S.A. | Marcelo Arriagada")
-
 
