@@ -1,24 +1,24 @@
-# === CONFIGURACION DE PAGINA ===
+# === CONFIGURACIÓN DE PÁGINA ===
 import streamlit as st
 st.set_page_config(page_title="Reporte Mensual", layout="wide")
 
-# === LIBRERIAS NECESARIAS ===
+# === LIBRERÍAS NECESARIAS ===
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 
-# === SIDEBAR: SELECCION DE MES ===
+# === SELECCIÓN DE MES EN SECCIÓN CENTRAL ===
 meses = {
     "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
     "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
     "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
 }
-st.sidebar.header("📅 Seleccionar mes")
-mes_seleccionado = st.sidebar.selectbox("Mes", list(meses.keys()))
+st.markdown("## 📅 Selección de mes")
+mes_seleccionado = st.selectbox("Mes", list(meses.keys()), index=pd.Timestamp.now().month - 1)
 mes_num = meses[mes_seleccionado]
 
-# === ENCABEZADO CON LOGO Y TITULO ===
+# === ENCABEZADO CON LOGO Y TÍTULO ===
 col_logo, col_title = st.columns([1, 9])
 with col_logo:
     st.image("logo.jpg", width=180)
@@ -33,7 +33,7 @@ df_pluv["Fecha"] = pd.to_datetime(df_pluv["Fecha"])
 df_pluv["Año"] = df_pluv["Fecha"].dt.year
 df_pluv["Mes"] = df_pluv["Fecha"].dt.month
 
-# === CARGA DE DATOS HISTORICOS ===
+# === CARGA DE DATOS HISTÓRICOS ===
 df_hist_raw = pd.read_excel(archivo_excel, sheet_name="Datos Historicos", skiprows=195, usecols="C:G")
 df_hist = df_hist_raw.rename(columns={df_hist_raw.columns[0]: "Fecha"})
 df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors='coerce')
@@ -61,24 +61,35 @@ prec_2025 = df_2025[df_2025["Mes"] == mes_num]["Precipitacion"].sum()
 prec_2024 = df_2024[df_2024["Mes"] == mes_num]["Precipitacion"].sum()
 prec_5y = df_5y_avg.loc[mes_num] if mes_num in df_5y_avg.index else 0
 
+# === ACUMULADOS ===
+prec_acum = df_2025[df_2025["Mes"] <= mes_num]["Precipitacion"].sum()
+gen_acum = df_hist_2025[df_hist_2025["Mes"] <= mes_num]["Generación Bornes (kWh)"].sum()
+venta_acum = df_hist_2025[df_hist_2025["Mes"] <= mes_num]["Facturacion (USD$)"].sum()
+
 # === DELTAS ===
 delta_prec_24 = prec_2025 - prec_2024
 delta_prec_5y = prec_2025 - prec_5y
 delta_gen = gen_2025 - gen_2024
 delta_venta = venta_2025 - venta_2024
 
-# === KPI ===
+# === KPIs ===
 st.markdown(f"## 📊 Indicadores de {mes_seleccionado}")
 col1, col2, col3 = st.columns(3)
 col1.metric("Precipitaciones 2025", f"{prec_2025:.1f} mm", f"{delta_prec_24:+.1f} mm vs 2024")
 col2.metric("Precipitaciones 2024", f"{prec_2024:.1f} mm")
-col3.metric("Promedio 2020-2024", f"{prec_5y:.1f} mm", f"{delta_prec_5y:+.1f} mm vs promedio")
+col3.metric("Prom. 2020-2024", f"{prec_5y:.1f} mm", f"{delta_prec_5y:+.1f} mm vs prom.")
 
 col4, col5 = st.columns(2)
 col4.metric("Generación 2025", f"{gen_2025:,.0f} kWh", f"{delta_gen:+,.0f} kWh vs 2024")
 col5.metric("Ventas 2025", f"${venta_2025:,.0f}", f"{delta_venta:+,.0f} USD vs 2024")
 
-# === GRAFICO DE BARRAS PRECIPITACIONES ===
+st.markdown("### 🔄 Valores Acumulados a la Fecha")
+col6, col7, col8 = st.columns(3)
+col6.metric("Acumulado Precipitaciones", f"{prec_acum:.1f} mm")
+col7.metric("Acumulado Generación", f"{gen_acum:,.0f} kWh")
+col8.metric("Acumulado Ventas", f"${venta_acum:,.0f}")
+
+# === GRÁFICO DE BARRAS PRECIPITACIONES ===
 st.markdown(f"### 📊 Precipitaciones - {mes_seleccionado}")
 labels = ["2025", "2024", "Prom. 5 años"]
 valores = [prec_2025, prec_2024, prec_5y]
@@ -91,39 +102,37 @@ for bar, valor in zip(bars, valores):
     ax_bar.text(bar.get_x() + bar.get_width()/2, valor + y_max*0.02, f"{valor:.1f}", ha='center', va='bottom', fontsize=10)
 ax_bar.set_ylim(0, y_max)
 ax_bar.set_ylabel("mm", fontsize=10)
-ax_bar.set_title(f"Comparación mensual de precipitaciones", fontsize=13)
+ax_bar.set_title("Comparación mensual de precipitaciones", fontsize=13)
 ax_bar.grid(axis='y', linestyle='--', alpha=0.3)
 ax_bar.spines["top"].set_visible(False)
 ax_bar.spines["right"].set_visible(False)
 st.pyplot(fig_bar)
 
-# === GRAFICO DE PRODUCCION ANUAL ===
+# === GRÁFICO DE PRODUCCIÓN ANUAL ===
 st.markdown("### 🔌 Producción Anual de Energía")
 gen_serie_2025 = df_hist_2025.groupby("Mes")["Generación Bornes (kWh)"].sum()
 gen_serie_2024 = df_hist_2024.groupby("Mes")["Generación Bornes (kWh)"].sum()
 gen_serie_5y = df_hist_5y.groupby("Mes")["Generación Bornes (kWh)"].mean()
-
 fig_gen, ax_gen = plt.subplots(figsize=(10, 4))
 mes_labels = list(meses.keys())
 ax_gen.plot(mes_labels[:len(gen_serie_2025)], gen_serie_2025, label="2025", marker='o')
 ax_gen.plot(mes_labels[:len(gen_serie_2024)], gen_serie_2024, label="2024", marker='o')
-ax_gen.plot(mes_labels[:len(gen_serie_5y)], gen_serie_5y, label="Prom. 2020-2024", linestyle='--', marker='o')
+ax_gen.plot(mes_labels[:len(gen_serie_5y)], gen_serie_5y, label="Prom. 2020–2024", linestyle='--', marker='o')
 ax_gen.set_title("Energía Generada por Mes", fontsize=14)
 ax_gen.set_ylabel("kWh")
 ax_gen.legend()
 ax_gen.grid(True, linestyle='--', alpha=0.5)
 st.pyplot(fig_gen)
 
-# === GRAFICO DE VENTAS ===
+# === GRÁFICO DE VENTAS ANUALES ===
 st.markdown("### 💰 Ventas Anuales")
 venta_serie_2025 = df_hist_2025.groupby("Mes")["Facturacion (USD$)"].sum()
 venta_serie_2024 = df_hist_2024.groupby("Mes")["Facturacion (USD$)"].sum()
 venta_serie_5y = df_hist_5y.groupby("Mes")["Facturacion (USD$)"].mean()
-
 fig_venta, ax_venta = plt.subplots(figsize=(10, 4))
 ax_venta.plot(mes_labels[:len(venta_serie_2025)], venta_serie_2025, label="2025", marker='o')
 ax_venta.plot(mes_labels[:len(venta_serie_2024)], venta_serie_2024, label="2024", marker='o')
-ax_venta.plot(mes_labels[:len(venta_serie_5y)], venta_serie_5y, label="Prom. 2020-2024", linestyle='--', marker='o')
+ax_venta.plot(mes_labels[:len(venta_serie_5y)], venta_serie_5y, label="Prom. 2020–2024", linestyle='--', marker='o')
 ax_venta.set_title("Ventas por Mes (USD)", fontsize=14)
 ax_venta.set_ylabel("USD")
 ax_venta.legend()
