@@ -76,18 +76,35 @@ col4, col5 = st.columns(2)
 col4.metric("Generación 2025", f"{gen_2025:,.0f} kWh", f"{delta_gen:+,.0f} kWh vs 2024")
 col5.metric("Ventas 2025", f"${venta_2025:,.0f}", f"{delta_venta:+,.0f} USD vs 2024")
 
-# === GRAFICO DE BARRAS ===
+# === GRAFICO DE BARRAS COMPARATIVAS DE PRECIPITACIONES (Mejorado) ===
 st.markdown(f"### 📊 Precipitaciones - {mes_seleccionado}")
-fig_bar, ax_bar = plt.subplots(figsize=(6, 3))
+
+# Valores y etiquetas
 labels = ["2025", "2024", "Prom. 5 años"]
 valores = [prec_2025_mes, prec_2024_mes, prom_ult_5_mes]
-colores = ["#1f77b4", "#ff7f0e", "#2ca02c"]
-ax_bar.bar(labels, valores, color=colores, width=0.5)
-ax_bar.set_ylabel("mm")
-ax_bar.set_title(f"Comparación mensual ({mes_seleccionado})")
-ax_bar.grid(axis='y', linestyle='--', alpha=0.5)
-for i, v in enumerate(valores):
-    ax_bar.text(i, v + 1, f"{v:.1f}", ha='center')
+colores = ["#005DAA", "#A0A0A0", "#2E8B57"]  # Azul corporativo, gris y verde
+
+# Escala máxima del eje Y (25% más del valor máximo)
+y_max = max(valores) * 1.25
+
+# Gráfico de barras más compacto
+fig_bar, ax_bar = plt.subplots(figsize=(6, 1.8))  # Alto reducido a la mitad
+
+# Gráfico
+bars = ax_bar.bar(labels, valores, color=colores, width=0.4)
+
+# Etiquetas sobre las barras
+for bar, valor in zip(bars, valores):
+    ax_bar.text(bar.get_x() + bar.get_width()/2, valor + y_max*0.02, f"{valor:.1f}", ha='center', va='bottom', fontsize=10)
+
+# Estética
+ax_bar.set_ylim(0, y_max)
+ax_bar.set_ylabel("mm", fontsize=10)
+ax_bar.set_title(f"Comparación mensual de precipitaciones", fontsize=13)
+ax_bar.grid(axis='y', linestyle='--', alpha=0.3)
+ax_bar.spines["top"].set_visible(False)
+ax_bar.spines["right"].set_visible(False)
+
 st.pyplot(fig_bar)
 
 # === GRAFICO DE LINEAS SUAVIZADAS DE PRECIPITACION ===
