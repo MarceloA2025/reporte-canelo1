@@ -1,104 +1,117 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
-from datetime import datetime
-from PIL import Image
+import matplotlib.ticker as ticker
+from scipy.interpolate import make_interp_spline
+import numpy as np
 
-# --- CONFIGURACIÓN GENERAL ---
-st.set_page_config(
-    page_title="Reporte Mensual - Hidroeléctrica El Canelo S.A. - 2025",
-    layout="centered",
-    initial_sidebar_state="collapsed"
-)
+# Configuración de página
+st.set_page_config(page_title="Reporte Mensual", layout="wide")
 
-# --- LOGO ---
-logo = "logo.jpg"
-col1, col2 = st.columns([1, 10])
-with col1:
-    st.image(logo, width=80)
-with col2:
-    st.markdown("### 📊 Reporte Mensual - Hidroeléctrica El Canelo S.A. - 2025")
+# --- Encabezado con logo y título ---
+col_logo, col_titulo = st.columns([1, 9])
+with col_logo:
+    st.image("logo.jpg", width=180)
+with col_titulo:
+    st.markdown("<h1 style='font-size: 48px; margin-bottom: 0;'>REPORTE MENSUAL - 📅</h1>", unsafe_allow_html=True)
 
-# --- SELECCIÓN DE MES ---
-meses_dict = {
-    1: "enero", 2: "febrero", 3: "marzo", 4: "abril", 5: "mayo", 6: "junio",
-    7: "julio", 8: "agosto", 9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"
+# --- Sidebar: Selector de mes ---
+meses = {
+    "Enero": 0, "Febrero": 1, "Marzo": 2, "Abril": 3,
+    "Mayo": 4, "Junio": 5, "Julio": 6, "Agosto": 7,
+    "Septiembre": 8, "Octubre": 9, "Noviembre": 10, "Diciembre": 11
 }
-mes_seleccionado = st.selectbox("Selecciona el mes del informe", list(meses_dict.values()))
-numero_mes = list(meses_dict.values()).index(mes_seleccionado) + 1
+st.sidebar.header("📅 Seleccionar mes")
+mes_seleccionado = st.sidebar.selectbox("Mes", list(meses.keys()))
+idx_mes = meses[mes_seleccionado]
 
-# --- LECTURA DE DATOS ---
+# --- Cargar datos desde Excel ---
 archivo_excel = "HEC mensuales 2025.xlsx"
-df = pd.read_excel(archivo_excel, sheet_name="Pluviometria", header=None, skiprows=128, usecols="C:D")
-df.columns = ["Fecha", "Precipitaciones"]
-df = df.dropna()
-df = df[df["Fecha"] != "Fecha"]  # remover encabezado repetido
-df["Fecha"] = pd.to_datetime(df["Fecha"], format="%b-%y", errors="coerce")
-df = df.dropna(subset=["Fecha"])
+df_raw = pd.read_excel(archivo_excel, sheet_name="Pluviometria", skiprows=127, usecols="C:D")
+df = df_raw.rename(columns={df_raw.columns[0]: "Fecha", df_raw.columns[1]: "Precipitacion"})
+df["Fecha"] = pd.to_datetime(df["Fecha"])
 df["Año"] = df["Fecha"].dt.year
 df["Mes"] = df["Fecha"].dt.month
-df = df.sort_values("Fecha")
 
-# --- AÑOS DE COMPARACIÓN ---
-anio_actual = 2025
-anio_anterior = 2024
-ultimos_5 = list(range(2020, 2025))
+# --- Preparación de datos ---
+df_2025 = df[df["Año"] == 2025].reset_index(drop=True)
+df_2024 = df[df["Año"] == 2024].reset_index(drop=True)
+df_ult_5 = df[df["Año"].between(2020, 2024)].groupby("Mes")["Precipitacion"].mean()
 
-# --- EXTRACCIÓN DE DATOS ---
-actual = df[(df["Año"] == anio_actual) & (df["Mes"] == numero_mes)]["Precipitaciones"].values
-anterior = df[(df["Año"] == anio_anterior) & (df["Mes"] == numero_mes)]["Precipitaciones"].values
-promedio_5 = df[(df["Año"].isin(ultimos_5)) & (df["Mes"] == numero_mes)]["Precipitaciones"].mean()
+# --- Obtener valores del mes seleccionado ---
+prec_2025_mes = df_2025.iloc[idx_mes]["Precipitacion"] if idx_mes < len(df_2025) else 0
+prec_2024_mes = df_2024.iloc[idx_mes]["Precipitacion"] if idx_mes < len(df_2024) else 0
+prom_ult_5_mes = df_ult_5.iloc[idx_mes] if idx_mes < len(df_ult_5) else 0
 
-# --- MÉTRICAS PRINCIPALES ---
-st.markdown("### 📌 Resumen del mes")
-if len(actual) > 0:
-    val_act = actual[0]
-    val_ant = anterior[0] if len(anterior) > 0 else None
-    variacion = ((val_act - val_ant) / val_ant * 100) if val_ant else None
+# --- KPIs principales ---
+delta_2025_vs_24 = prec_2025_mes - prec_2024_mes
+delta_2025_vs_prom = prec_2025_mes - prom_ult_5_mes
 
-    st.markdown(f"**Precipitaciones {mes_seleccionado} 2025:** {val_act:.1f} mm")
-    if val_ant is not None:
-        color_var = "green" if variacion >= 0 else "red"
-        st.markdown(f"**Precipitaciones {mes_seleccionado} 2024:** {val_ant:.1f} mm")
-        st.markdown(f"<span style='color:{color_var}; font-size: 22px; font-weight: bold;'>"
-                    f"Variación interanual:<br>{variacion:+.1f}%</span>", unsafe_allow_html=True)
-    st.markdown(f"**Promedio últimos 5 años:** {promedio_5:.1f} mm")
-else:
-    st.warning("No hay datos para este mes de 2025.")
+st.markdown(f"## 📊 Indicadores de {mes_seleccionado}")
+col1, col2, col3 = st.columns(3)
+col1.metric("Precipitaciones 2025", f"{prec_2025_mes:.1f} mm", f"{delta_2025_vs_24:+.1f} mm vs 2024")
+col2.metric("Precipitaciones 2024", f"{prec_2024_mes:.1f} mm")
+col3.metric("Prom. 2020–2024", f"{prom_ult_5_mes:.1f} mm", f"{delta_2025_vs_prom:+.1f} mm vs promedio")
 
-# --- GRÁFICO DE BARRAS ---
-st.markdown("### 📉 Comparación gráfica")
-fig_bar, ax = plt.subplots(figsize=(6, 4))
+# --- Gráfico de barras ---
+st.markdown(f"### 📊 Comparación del mes de {mes_seleccionado}")
+fig_bar, ax_bar = plt.subplots(figsize=(6, 3))
 labels = ["2025", "2024", "Prom. 5 años"]
-values = [val_act, val_ant if val_ant else 0, promedio_5]
-bars = ax.bar(labels, values, color=["#4a90e2", "#f5a623", "#7ed321"])
-ax.set_ylabel("Precipitaciones (mm)")
-ax.set_title(f"Precipitaciones en {mes_seleccionado.capitalize()}")
+valores = [prec_2025_mes, prec_2024_mes, prom_ult_5_mes]
+colores = ['green' if prec_2025_mes >= x else 'red' for x in [prec_2024_mes, prom_ult_5_mes, prom_ult_5_mes]]
+ax_bar.bar(labels, valores, color=colores)
+ax_bar.set_ylabel("mm")
+ax_bar.set_title(f"Precipitaciones - {mes_seleccionado}", fontsize=14)
+ax_bar.grid(axis='y', linestyle='--', alpha=0.5)
+for i, v in enumerate(valores):
+    ax_bar.text(i, v + 1, f"{v:.1f}", ha='center', fontsize=10)
 st.pyplot(fig_bar)
 
-# --- GRÁFICO DE LÍNEAS ANUAL COMPARADO ---
-st.markdown("### 📈 Evolución anual comparada")
+# --- Gráfico de línea suavizada ---
+st.markdown("### 📈 Evolución mensual de precipitaciones (línea suavizada)")
 
-# Preparar estructura de meses
-df_mes = df[df["Año"].isin(ultimos_5 + [anio_actual, anio_anterior])]
-pivot = df_mes.pivot_table(index="Mes", columns="Año", values="Precipitaciones")
+# Suavizado con interpolación
+mes_numerico = np.arange(1, len(df_2025["Precipitacion"]) + 1)
+mes_labels = df_2025["Fecha"].dt.strftime('%b')
 
-# Agregar promedio 5 años
-pivot["Prom_5"] = pivot[ultimos_5].mean(axis=1)
+def suavizar(x, y):
+    if len(x) >= 4:
+        xnew = np.linspace(x.min(), x.max(), 300)
+        spl = make_interp_spline(x, y, k=3)
+        ynew = spl(xnew)
+        return xnew, ynew
+    else:
+        return x, y
 
-fig_line, ax2 = plt.subplots(figsize=(7, 4))
-meses = list(meses_dict.values())
+x_2025, y_2025 = suavizar(mes_numerico, df_2025["Precipitacion"].values)
+x_2024, y_2024 = suavizar(mes_numerico, df_2024["Precipitacion"].values)
+x_prom, y_prom = suavizar(mes_numerico, df_ult_5.values)
 
-ax2.plot(meses, pivot[anio_actual], marker="o", label="2025", color="#4a90e2")
-ax2.plot(meses, pivot[anio_anterior], marker="o", label="2024", color="#f5a623", linestyle="--")
-ax2.plot(meses, pivot["Prom_5"], marker="o", label="Prom. 2020-2024", color="#7ed321", linestyle="dotted")
-
-ax2.set_title("Precipitaciones enero - diciembre")
-ax2.set_ylabel("Precipitaciones (mm)")
-ax2.legend()
-ax2.grid(True, linestyle="--", alpha=0.5)
+fig_line, ax_line = plt.subplots(figsize=(10, 4))
+ax_line.plot(x_2025, y_2025, label="2025", linewidth=2.2)
+ax_line.plot(x_2024, y_2024, label="2024", linestyle='--', linewidth=2)
+ax_line.plot(x_prom, y_prom, label="Prom. 2020–2024", linestyle='-.', linewidth=2)
+ax_line.set_xticks(mes_numerico)
+ax_line.set_xticklabels(mes_labels, rotation=45)
+ax_line.set_title("Tendencia de precipitaciones mensuales", fontsize=16)
+ax_line.set_ylabel("mm", fontsize=12)
+ax_line.grid(True, linestyle='--', alpha=0.4)
+ax_line.legend()
 st.pyplot(fig_line)
+
+# --- Secciones futuras ---
+st.markdown("---")
+st.markdown("## 🔧 Secciones en desarrollo")
+with st.expander("⚡ Generación de energía"):
+    st.write("Esta sección estará disponible próximamente.")
+with st.expander("💰 Ingresos y ventas"):
+    st.write("Esta sección estará disponible próximamente.")
+with st.expander("🔒 Cumplimiento normativo y seguridad"):
+    st.write("Esta sección estará disponible próximamente.")
+
+# --- Pie de página ---
+st.markdown("---")
+st.markdown("© 2025 Hidroeléctrica El Canelo S.A. | Marcelo Arriagada")
 
 
 
