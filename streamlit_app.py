@@ -33,15 +33,20 @@ df["Fecha"] = pd.to_datetime(df["Fecha"])
 df["Año"] = df["Fecha"].dt.year
 df["Mes"] = df["Fecha"].dt.month
 
-# === Datos históricos de generación y ventas ===
 df_hist = pd.read_excel(archivo_excel, sheet_name="Datos Historicos")
-if "Fecha" not in df_hist.columns:
-    for col in df_hist.columns:
-        if "fecha" in col.lower():
-            df_hist.rename(columns={col: "Fecha"}, inplace=True)
-            break
-if "Fecha" not in df_hist.columns:
-    st.error("❌ Error: No se encontró la columna 'Fecha' en la hoja 'Datos Historicos'.")
+
+# Buscar columna que contenga la palabra 'fecha'
+col_fecha = None
+for col in df_hist.columns:
+    if "fecha" in col.lower():
+        col_fecha = col
+        break
+
+# Validar y renombrar
+if col_fecha:
+    df_hist.rename(columns={col_fecha: "Fecha"}, inplace=True)
+else:
+    st.error("❌ Error: No se encontró una columna que contenga la palabra 'fecha' en la hoja 'Datos Historicos'.")
     st.stop()
 
 df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors='coerce')
