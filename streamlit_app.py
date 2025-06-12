@@ -1,83 +1,104 @@
-import pandas as pd
 import streamlit as st
+import pandas as pd
 import matplotlib.pyplot as plt
-from PIL import Image
+import matplotlib.ticker as mticker
 from datetime import datetime
-import matplotlib.ticker as ticker
+from PIL import Image
 
-# Configuración visual
-st.set_page_config(page_title="Reporte Mensual", layout="wide")
-st.markdown("""
-    <style>
-        .kpi-title {
-            font-size: 16px;
-            color: #666;
-        }
-        .kpi-value-pos {
-            font-size: 28px;
-            color: green;
-        }
-        .kpi-value-neg {
-            font-size: 28px;
-            color: red;
-        }
-    </style>
-""", unsafe_allow_html=True)
+# --- CONFIGURACIÓN GENERAL ---
+st.set_page_config(
+    page_title="Reporte Mensual - Hidroeléctrica El Canelo S.A. - 2025",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
 
-# Logo
-logo = Image.open("logo.jpg")
-st.image(logo, width=150)
+# --- LOGO ---
+logo = "logo.jpg"
+col1, col2 = st.columns([1, 10])
+with col1:
+    st.image(logo, width=80)
+with col2:
+    st.markdown("### 📊 Reporte Mensual - Hidroeléctrica El Canelo S.A. - 2025")
 
-# Título
-st.title("📊 REPORTE MENSUAL - HIDROELÉCTRICA EL CANELO")
-
-# Selección del mes
-meses = {
-    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
-    5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
-    9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+# --- SELECCIÓN DE MES ---
+meses_dict = {
+    1: "enero", 2: "febrero", 3: "marzo", 4: "abril", 5: "mayo", 6: "junio",
+    7: "julio", 8: "agosto", 9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"
 }
-mes_nombre = st.selectbox("Selecciona el mes:", list(meses.values()))
-mes_num = list(meses.keys())[list(meses.values()).index(mes_nombre)]
+mes_seleccionado = st.selectbox("Selecciona el mes del informe", list(meses_dict.values()))
+numero_mes = list(meses_dict.values()).index(mes_seleccionado) + 1
 
-# Cargar Excel
-archivo = "HEC mensuales 2025.xlsx"
-df = pd.read_excel(archivo, sheet_name="Pluviometria", skiprows=128, usecols="C:D")
+# --- LECTURA DE DATOS ---
+archivo_excel = "HEC mensuales 2025.xlsx"
+df = pd.read_excel(archivo_excel, sheet_name="Pluviometria", header=None, skiprows=128, usecols="C:D")
 df.columns = ["Fecha", "Precipitaciones"]
 df = df.dropna()
+df = df[df["Fecha"] != "Fecha"]  # remover encabezado repetido
 df["Fecha"] = pd.to_datetime(df["Fecha"], format="%b-%y", errors="coerce")
-df = df.dropna()
+df = df.dropna(subset=["Fecha"])
 df["Año"] = df["Fecha"].dt.year
 df["Mes"] = df["Fecha"].dt.month
+df = df.sort_values("Fecha")
 
-# Datos año actual, anterior y promedio últimos 5 años (2020-2024)
-actual = df[(df["Año"] == 2025) & (df["Mes"] == mes_num)]["Precipitaciones"].sum()
-anterior = df[(df["Año"] == 2024) & (df["Mes"] == mes_num)]["Precipitaciones"].sum()
-prom5 = df[(df["Año"] >= 2020) & (df["Año"] <= 2024) & (df["Mes"] == mes_num)]["Precipitaciones"].mean()
-diferencia = actual - prom5
+# --- AÑOS DE COMPARACIÓN ---
+anio_actual = 2025
+anio_anterior = 2024
+ultimos_5 = list(range(2020, 2025))
 
-# Mostrar KPIs
-col1, col2, col3 = st.columns(3)
-col1.markdown(f"<div class='kpi-title'>Precipitación {mes_nombre} 2025</div><div class='kpi-value-pos'>{actual:.1f} mm</div>", unsafe_allow_html=True)
-col2.markdown(f"<div class='kpi-title'>Precipitación {mes_nombre} 2024</div><div class='kpi-value-pos'>{anterior:.1f} mm</div>", unsafe_allow_html=True)
-color = "kpi-value-pos" if diferencia >= 0 else "kpi-value-neg"
-col3.markdown(f"<div class='kpi-title'>Diferencia vs promedio (2020-2024)</div><div class='{color}'>{diferencia:+.1f} mm</div>", unsafe_allow_html=True)
+# --- EXTRACCIÓN DE DATOS ---
+actual = df[(df["Año"] == anio_actual) & (df["Mes"] == numero_mes)]["Precipitaciones"].values
+anterior = df[(df["Año"] == anio_anterior) & (df["Mes"] == numero_mes)]["Precipitaciones"].values
+promedio_5 = df[(df["Año"].isin(ultimos_5)) & (df["Mes"] == numero_mes)]["Precipitaciones"].mean()
 
-# Generar gráfico línea suavizado
-st.subheader("📈 Evolución mensual comparada")
-df_2025 = df[df["Año"] == 2025].groupby("Mes")["Precipitaciones"].sum()
-df_2024 = df[df["Año"] == 2024].groupby("Mes")["Precipitaciones"].sum()
-df_5prom = df[(df["Año"] >= 2020) & (df["Año"] <= 2024)].groupby("Mes")["Precipitaciones"].mean()
+# --- MÉTRICAS PRINCIPALES ---
+st.markdown("### 📌 Resumen del mes")
+if len(actual) > 0:
+    val_act = actual[0]
+    val_ant = anterior[0] if len(anterior) > 0 else None
+    variacion = ((val_act - val_ant) / val_ant * 100) if val_ant else None
 
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(meses.values(), df_2025, marker='o', label="2025", linewidth=2)
-ax.plot(meses.values(), df_2024, marker='o', linestyle='--', label="2024", linewidth=2)
-ax.plot(meses.values(), df_5prom, marker='o', linestyle=':', label="Promedio 2020-2024", linewidth=2)
+    st.markdown(f"**Precipitaciones {mes_seleccionado} 2025:** {val_act:.1f} mm")
+    if val_ant is not None:
+        color_var = "green" if variacion >= 0 else "red"
+        st.markdown(f"**Precipitaciones {mes_seleccionado} 2024:** {val_ant:.1f} mm")
+        st.markdown(f"<span style='color:{color_var}; font-size: 22px; font-weight: bold;'>"
+                    f"Variación interanual:<br>{variacion:+.1f}%</span>", unsafe_allow_html=True)
+    st.markdown(f"**Promedio últimos 5 años:** {promedio_5:.1f} mm")
+else:
+    st.warning("No hay datos para este mes de 2025.")
+
+# --- GRÁFICO DE BARRAS ---
+st.markdown("### 📉 Comparación gráfica")
+fig_bar, ax = plt.subplots(figsize=(6, 4))
+labels = ["2025", "2024", "Prom. 5 años"]
+values = [val_act, val_ant if val_ant else 0, promedio_5]
+bars = ax.bar(labels, values, color=["#4a90e2", "#f5a623", "#7ed321"])
 ax.set_ylabel("Precipitaciones (mm)")
-ax.set_title("Precipitaciones mensuales")
-ax.legend()
-ax.grid(True)
-st.pyplot(fig)
+ax.set_title(f"Precipitaciones en {mes_seleccionado.capitalize()}")
+st.pyplot(fig_bar)
+
+# --- GRÁFICO DE LÍNEAS ANUAL COMPARADO ---
+st.markdown("### 📈 Evolución anual comparada")
+
+# Preparar estructura de meses
+df_mes = df[df["Año"].isin(ultimos_5 + [anio_actual, anio_anterior])]
+pivot = df_mes.pivot_table(index="Mes", columns="Año", values="Precipitaciones")
+
+# Agregar promedio 5 años
+pivot["Prom_5"] = pivot[ultimos_5].mean(axis=1)
+
+fig_line, ax2 = plt.subplots(figsize=(7, 4))
+meses = list(meses_dict.values())
+
+ax2.plot(meses, pivot[anio_actual], marker="o", label="2025", color="#4a90e2")
+ax2.plot(meses, pivot[anio_anterior], marker="o", label="2024", color="#f5a623", linestyle="--")
+ax2.plot(meses, pivot["Prom_5"], marker="o", label="Prom. 2020-2024", color="#7ed321", linestyle="dotted")
+
+ax2.set_title("Precipitaciones enero - diciembre")
+ax2.set_ylabel("Precipitaciones (mm)")
+ax2.legend()
+ax2.grid(True, linestyle="--", alpha=0.5)
+st.pyplot(fig_line)
 
 
 
