@@ -34,7 +34,7 @@ df["Año"] = df["Fecha"].dt.year
 df["Mes"] = df["Fecha"].dt.month
 
 # === Datos históricos de generación y ventas ===
-df_hist = pd.read_excel(archivo_excel, sheet_name="Datos historicos", skiprows=195, usecols="C:G")
+df_hist = pd.read_excel(archivo_excel, sheet_name="Datos historicos")
 df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"])
 df_hist["Año"] = df_hist["Fecha"].dt.year
 df_hist["Mes"] = df_hist["Fecha"].dt.month
