@@ -35,26 +35,41 @@ df["Mes"] = df["Fecha"].dt.month
 
 # === Datos históricos de generación y ventas ===
 df_hist = pd.read_excel(archivo_excel, sheet_name="Datos Historicos")
-df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"])
+if "Fecha" not in df_hist.columns:
+    for col in df_hist.columns:
+        if "fecha" in col.lower():
+            df_hist.rename(columns={col: "Fecha"}, inplace=True)
+            break
+if "Fecha" not in df_hist.columns:
+    st.error("❌ Error: No se encontró la columna 'Fecha' en la hoja 'Datos Historicos'.")
+    st.stop()
+
+df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors='coerce')
+df_hist = df_hist.dropna(subset=["Fecha"])
 df_hist["Año"] = df_hist["Fecha"].dt.year
 df_hist["Mes"] = df_hist["Fecha"].dt.month
 
+# === Filtrar por año ===
 df_hist_2025 = df_hist[df_hist["Año"] == 2025].reset_index(drop=True)
 df_hist_2024 = df_hist[df_hist["Año"] == 2024].reset_index(drop=True)
 
+# === Valores del mes seleccionado ===
 gen_2025 = df_hist_2025.iloc[idx_mes]["Generación Bornes (kWh)"] if idx_mes < len(df_hist_2025) else 0
 gen_2024 = df_hist_2024.iloc[idx_mes]["Generación Bornes (kWh)"] if idx_mes < len(df_hist_2024) else 0
 venta_2025 = df_hist_2025.iloc[idx_mes]["Facturacion (USD$)"] if idx_mes < len(df_hist_2025) else 0
 venta_2024 = df_hist_2024.iloc[idx_mes]["Facturacion (USD$)"] if idx_mes < len(df_hist_2024) else 0
 
+# === Filtrar precipitaciones por año ===
 df_2025 = df[df["Año"] == 2025].reset_index(drop=True)
 df_2024 = df[df["Año"] == 2024].reset_index(drop=True)
 df_ult_5 = df[df["Año"].between(2020, 2024)].groupby("Mes")["Precipitacion"].mean()
 
+# === Valores de precipitaciones del mes seleccionado ===
 prec_2025_mes = df_2025.iloc[idx_mes]["Precipitacion"] if idx_mes < len(df_2025) else 0
 prec_2024_mes = df_2024.iloc[idx_mes]["Precipitacion"] if idx_mes < len(df_2024) else 0
 prom_ult_5_mes = df_ult_5.iloc[idx_mes] if idx_mes < len(df_ult_5) else 0
 
+# === Cálculo de diferencias ===
 delta_2025_vs_24 = prec_2025_mes - prec_2024_mes
 delta_2025_vs_prom = prec_2025_mes - prom_ult_5_mes
 delta_gen = gen_2025 - gen_2024
@@ -71,7 +86,7 @@ col4, col5 = st.columns(2)
 col4.metric("Generación 2025", f"{gen_2025:,.0f} kWh", f"{delta_gen:+,.0f} kWh vs 2024")
 col5.metric("Ventas 2025", f"${venta_2025:,.0f}", f"{delta_venta:+,.0f} USD vs 2024")
 
-# === GRAFICO DE BARRAS COMPARATIVAS DE PRECIPITACIONES (Mejorado) ===
+# === GRAFICO DE BARRAS COMPARATIVAS DE PRECIPITACIONES ===
 st.markdown(f"### 📊 Precipitaciones - {mes_seleccionado}")
 labels = ["2025", "2024", "Prom. 5 años"]
 valores = [prec_2025_mes, prec_2024_mes, prom_ult_5_mes]
@@ -108,34 +123,6 @@ ax_line.legend()
 ax_line.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 st.pyplot(fig_line)
 
-# === GRAFICO DE LINEAS SUAVIZADAS DE GENERACION ===
-st.markdown("### ⚡ Evolución mensual de generación (kWh)")
-fig_gen, ax_gen = plt.subplots(figsize=(10, 4))
-serie_gen_2025 = df_hist_2025["Generación Bornes (kWh)"].rolling(window=2, min_periods=1).mean()
-serie_gen_2024 = df_hist_2024["Generación Bornes (kWh)"].rolling(window=2, min_periods=1).mean()
-meses_hist = df_hist_2025["Fecha"].dt.strftime('%b')
-
-ax_gen.plot(meses_hist, serie_gen_2025, label="2025", linestyle='-', marker='o')
-ax_gen.plot(meses_hist, serie_gen_2024, label="2024", linestyle='--', marker='o')
-ax_gen.set_title("Generación mensual (kWh)", fontsize=16)
-ax_gen.set_ylabel("kWh", fontsize=12)
-ax_gen.grid(True, linestyle='--', alpha=0.5)
-ax_gen.legend()
-st.pyplot(fig_gen)
-
-# === GRAFICO DE LINEAS SUAVIZADAS DE FACTURACION ===
-st.markdown("### 💰 Evolución mensual de facturación (USD$)")
-fig_venta, ax_venta = plt.subplots(figsize=(10, 4))
-serie_venta_2025 = df_hist_2025["Facturacion (USD$)"].rolling(window=2, min_periods=1).mean()
-serie_venta_2024 = df_hist_2024["Facturacion (USD$)"].rolling(window=2, min_periods=1).mean()
-
-ax_venta.plot(meses_hist, serie_venta_2025, label="2025", linestyle='-', marker='o')
-ax_venta.plot(meses_hist, serie_venta_2024, label="2024", linestyle='--', marker='o')
-ax_venta.set_title("Facturación mensual (USD$)", fontsize=16)
-ax_venta.set_ylabel("USD$", fontsize=12)
-ax_venta.grid(True, linestyle='--', alpha=0.5)
-ax_venta.legend()
-st.pyplot(fig_venta)
 
 # === SECCIONES FUTURAS ===
 st.markdown("---")
