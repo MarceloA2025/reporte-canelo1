@@ -1,3 +1,4 @@
+st.set_page_config(page_title="Reporte Mensual", layout="wide")
 # === LIBRERIAS NECESARIAS ===
 import streamlit as st
 import pandas as pd
