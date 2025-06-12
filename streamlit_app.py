@@ -38,7 +38,7 @@ df_hist = pd.read_excel(archivo_excel, sheet_name="Datos Historicos")
 # Buscar columna que contenga la palabra 'fecha'
 col_fecha = None
 for col in df_hist.columns:
-    if "fecha" in col.lower():
+    if "Fecha" in col.lower():
         col_fecha = col
         break
 
