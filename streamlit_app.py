@@ -7,6 +7,16 @@ import numpy as np
 
 st.set_page_config(page_title="Reporte Mensual", layout="wide")
 
+# === FUNCION PARA FORMATO DE DELTA ===
+def calcular_delta(valor_2025, valor_2024, unidad):
+    if valor_2024 == 0:
+        delta_abs = valor_2025
+        delta_pct = 0.0
+    else:
+        delta_abs = valor_2025 - valor_2024
+        delta_pct = (delta_abs / valor_2024) * 100
+    return f"{delta_abs:+,.1f} {unidad} ({delta_pct:+.1f}%) vs 2024"
+
 # === SIDEBAR: SELECCION DE MES ===
 meses = {
     "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
@@ -42,51 +52,41 @@ df_hist["Mes"] = df_hist["Fecha"].dt.month
 # === FILTROS POR AÑO ===
 df_hist_2025 = df_hist[df_hist["Año"] == 2025]
 df_hist_2024 = df_hist[df_hist["Año"] == 2024]
-df_hist_5y = df_hist[df_hist["Año"].between(2020, 2024)]
 
 df_2025 = df_pluv[df_pluv["Año"] == 2025]
 df_2024 = df_pluv[df_pluv["Año"] == 2024]
-df_5y_avg = df_pluv[df_pluv["Año"].between(2020, 2024)].groupby("Mes")["Precipitacion"].mean()
 
-# === KPI VALORES MENSUALES ===
+# === KPI MENSUALES ===
 prec_2025 = df_2025[df_2025["Mes"] == mes_num]["Precipitacion"].sum()
 prec_2024 = df_2024[df_2024["Mes"] == mes_num]["Precipitacion"].sum()
-prec_5y = df_5y_avg.loc[mes_num] if mes_num in df_5y_avg.index else 0
 
 gen_2025 = df_hist_2025[df_hist_2025["Mes"] == mes_num]["Generación Bornes (kWh)"].sum()
 gen_2024 = df_hist_2024[df_hist_2024["Mes"] == mes_num]["Generación Bornes (kWh)"].sum()
+
 venta_2025 = df_hist_2025[df_hist_2025["Mes"] == mes_num]["Facturacion (USD$)"].sum()
 venta_2024 = df_hist_2024[df_hist_2024["Mes"] == mes_num]["Facturacion (USD$)"].sum()
 
 # === KPI ACUMULADOS ===
 prec_acum_2025 = df_2025[df_2025["Mes"] <= mes_num]["Precipitacion"].sum()
 prec_acum_2024 = df_2024[df_2024["Mes"] <= mes_num]["Precipitacion"].sum()
+
 gen_acum_2025 = df_hist_2025[df_hist_2025["Mes"] <= mes_num]["Generación Bornes (kWh)"].sum()
 gen_acum_2024 = df_hist_2024[df_hist_2024["Mes"] <= mes_num]["Generación Bornes (kWh)"].sum()
+
 venta_acum_2025 = df_hist_2025[df_hist_2025["Mes"] <= mes_num]["Facturacion (USD$)"].sum()
 venta_acum_2024 = df_hist_2024[df_hist_2024["Mes"] <= mes_num]["Facturacion (USD$)"].sum()
 
-# === DELTAS ===
-delta_prec_24 = prec_2025 - prec_2024
-delta_prec_5y = prec_2025 - prec_5y
-delta_gen = gen_2025 - gen_2024
-delta_venta = venta_2025 - venta_2024
-delta_prec_acum = prec_acum_2025 - prec_acum_2024
-delta_gen_acum = gen_acum_2025 - gen_acum_2024
-delta_venta_acum = venta_acum_2025 - venta_acum_2024
-
-# === KPI ===
+# === VISUALIZACIÓN KPIs CON % ===
 st.markdown(f"## 📊 Indicadores de {mes_seleccionado}")
 col1, col2, col3 = st.columns(3)
-col1.metric("Precipitaciones Mensuales 2025", f"{prec_2025:.1f} mm", f"{delta_prec_24:+.1f} mm vs 2024")
-col2.metric("Generación Mensual 2025", f"{gen_2025:,.0f} kWh", f"{delta_gen:+,.0f} kWh vs 2024")
-col3.metric("Ventas Mensuales 2025", f"${venta_2025:,.0f}", f"{delta_venta:+,.0f} USD vs 2024")
+col1.metric("Precipitaciones Mensuales 2025", f"{prec_2025:.1f} mm", calcular_delta(prec_2025, prec_2024, "mm"))
+col2.metric("Generación Mensual 2025", f"{gen_2025:,.0f} kWh", calcular_delta(gen_2025, gen_2024, "kWh"))
+col3.metric("Ventas Mensuales 2025", f"${venta_2025:,.0f}", calcular_delta(venta_2025, venta_2024, "USD"))
 
 col4, col5, col6 = st.columns(3)
-col4.metric("Precipitaciones Acumuladas 2025", f"{prec_acum_2025:.1f} mm", f"{delta_prec_acum:+.1f} mm vs 2024")
-col5.metric("Generación Acumulada 2025", f"{gen_acum_2025:,.0f} kWh", f"{delta_gen_acum:+,.0f} kWh vs 2024")
-col6.metric("Ventas Acumuladas 2025", f"${venta_acum_2025:,.0f}", f"{delta_venta_acum:+,.0f} USD vs 2024")
-
+col4.metric("Precipitaciones Acumuladas 2025", f"{prec_acum_2025:.1f} mm", calcular_delta(prec_acum_2025, prec_acum_2024, "mm"))
+col5.metric("Generación Acumulada 2025", f"{gen_acum_2025:,.0f} kWh", calcular_delta(gen_acum_2025, gen_acum_2024, "kWh"))
+col6.metric("Ventas Acumuladas 2025", f"${venta_acum_2025:,.0f}", calcular_delta(venta_acum_2025, venta_acum_2024, "USD"))
 
 # === GRAFICO DE BARRAS PRECIPITACIONES ===
 st.markdown(f"### 📊 Precipitaciones - {mes_seleccionado}")
