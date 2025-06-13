@@ -52,9 +52,14 @@ df_hist["Mes"] = df_hist["Fecha"].dt.month
 # === FILTROS POR AÑO ===
 df_hist_2025 = df_hist[df_hist["Año"] == 2025]
 df_hist_2024 = df_hist[df_hist["Año"] == 2024]
+df_hist_5y = df_hist[df_hist["Año"].between(2020, 2024)]
 
 df_2025 = df_pluv[df_pluv["Año"] == 2025]
 df_2024 = df_pluv[df_pluv["Año"] == 2024]
+
+# === CÁLCULO PROMEDIO 5 AÑOS PRECIPITACIÓN ===
+df_5y_avg = df_pluv[df_pluv["Año"].between(2020, 2024)].groupby("Mes")["Precipitacion"].mean()
+prec_5y = df_5y_avg.loc[mes_num] if mes_num in df_5y_avg.index else 0
 
 # === KPI MENSUALES ===
 prec_2025 = df_2025[df_2025["Mes"] == mes_num]["Precipitacion"].sum()
