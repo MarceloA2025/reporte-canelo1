@@ -86,7 +86,7 @@ with col_title:
 # ==============================================
 try:
     # EDITABLE: Ruta exacta de tu archivo Excel
-    archivo_excel = Path(r"C:\Tu_Ruta\HEC mensuales 2025.xlsx")
+    archivo_excel = Path(r"C:\One Drive Hotmail\OneDrive\Documentos\Python VSCode\REPORTE WEB\HEC mensuales 2025.xlsx")
     
     # Carga datos de pluviometría - EDITABLE: skiprows y usecols según tu archivo
     df_pluv_raw = pd.read_excel(
