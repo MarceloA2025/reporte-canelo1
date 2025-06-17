@@ -37,7 +37,7 @@ meses = {
 mes_seleccionado = st.selectbox(
     "", 
     list(meses.keys()), 
-    index=5,
+    index=3,
     label_visibility="collapsed"
 )
 mes_num = meses[mes_seleccionado]
