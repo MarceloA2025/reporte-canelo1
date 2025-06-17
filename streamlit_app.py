@@ -23,7 +23,7 @@ def calcular_delta(valor_2025, valor_2024, unidad):
         delta_pct = (delta_abs / valor_2024) * 100
     
     color = "green" if delta_abs >= 0 else "red"
-    return f"<span style='color:{color}; font-size:14px;'>{delta_abs:+,.0f} {unidad} ({delta_pct:+.1f}%)</span> vs 2024"
+    return f"<span style='color:{color}; font-size:24px;'>{delta_abs:+,.0f} {unidad} ({delta_pct:+.1f}%)</span> vs 2024"
 
 # === INTERFAZ DE USUARIO ===
 st.markdown("<h2 style='text-align:center; font-family:Arial; color:#333333;'>📅 Seleccione el Mes</h2>", unsafe_allow_html=True)
