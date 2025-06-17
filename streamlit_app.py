@@ -59,17 +59,13 @@ with col_title:
         unsafe_allow_html=True
     )
 
-# === CARGA DE DATOS - VERSIÓN CORREGIDA ===
+# === CARGA DE DATOS ===
 try:
-    # SOLUCIÓN 1: Ruta relativa (coloca el Excel en la misma carpeta que el script)
+    # Opción 1: Ruta relativa (recomendado)
     archivo_excel = "HEC mensuales 2025.xlsx"
     
-    # SOLUCIÓN 2: Ruta absoluta alternativa (descomenta y ajusta)
+    # Opción 2: Ruta absoluta (descomenta y ajusta)
     # archivo_excel = r"C:\Users\TuUsuario\OneDrive\Documentos\Python VSCode\REPORTE WEB\HEC mensuales 2025.xlsx"
-    
-    # SOLUCIÓN 3: Usar pathlib (recomendado)
-    # from pathlib import Path
-    # archivo_excel = Path.home() / "OneDrive" / "Documentos" / "Python VSCode" / "REPORTE WEB" / "HEC mensuales 2025.xlsx"
     
     # Verificar existencia del archivo
     if not os.path.exists(archivo_excel):
@@ -182,7 +178,12 @@ display_metric(col5, "Generación Acumulada 2025", gen_acum_2025, gen_acum_2024,
 display_metric(col6, "Ventas Acumuladas 2025", venta_acum_2025, venta_acum_2024, "USD")
 
 # === GRÁFICOS ===
-plt.style.use('seaborn')
+# CORRECCIÓN: Usar 'seaborn-v0_8' en lugar de 'seaborn' para versiones recientes
+try:
+    plt.style.use('seaborn-v0_8')  # Para matplotlib >= 3.6
+except:
+    plt.style.use('seaborn')  # Para versiones anteriores
+
 mes_labels = list(meses.keys())
 
 def create_line_plot(data_2025, data_2024, data_5y, title, ylabel):
@@ -270,7 +271,7 @@ st.markdown("---")
 st.markdown(
     "<div style='text-align:center; color:gray; font-size:14px; margin-top:30px;'>"
     "Preparado por Ecoener - Marcelo Arriagada<br>"
-    "Última actualización: Julio 2023"
+    f"Última actualización: {mes_seleccionado} 2025"
     "</div>", 
     unsafe_allow_html=True
 )
