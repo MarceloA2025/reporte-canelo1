@@ -156,7 +156,7 @@ st.markdown(f"## 📊 Indicadores de {mes_seleccionado}")
 
 def display_metric(col, title, value_2025, value_2024, unit):
     col.markdown(
-        f"<div style='font-size:24px; margin-bottom:5px;'>{title}</div>",
+        f"<div style='font-size:32px; margin-bottom:5px;'>{title}</div>",
         unsafe_allow_html=True
     )
     col.markdown(
