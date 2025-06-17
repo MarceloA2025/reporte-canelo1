@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
-import os
 
 # === CONFIGURACIÓN INICIAL ===
 st.set_page_config(
@@ -13,14 +12,12 @@ st.set_page_config(
 
 # === FUNCIÓN PARA CALCULAR DELTAS ===
 def calcular_delta(valor_2025, valor_2024, unidad):
-    """Calcula la variación entre valores y devuelve texto formateado"""
     if valor_2024 == 0:
         delta_abs = valor_2025
         delta_pct = 0.0
     else:
         delta_abs = valor_2025 - valor_2024
         delta_pct = (delta_abs / valor_2024) * 100
-    
     color = "green" if delta_abs >= 0 else "red"
     return f"<span style='color:{color}; font-size:32px;'>{delta_abs:+,.0f} {unidad} ({delta_pct:+.1f}%)</span> vs 2024"
 
@@ -60,14 +57,11 @@ with col_title:
 
 # === CARGA DE DATOS ===
 try:
-    # Usar pathlib para manejo correcto de rutas
     archivo_excel = Path("HEC mensuales 2025.xlsx")
-    
     if not archivo_excel.exists():
         st.error(f"Archivo no encontrado en: {archivo_excel.absolute()}")
         st.stop()
 
-    # Carga datos de pluviometría
     df_pluv_raw = pd.read_excel(
         archivo_excel, 
         sheet_name="Pluviometria", 
@@ -79,7 +73,6 @@ try:
     df_pluv_raw["Año"] = df_pluv_raw["Fecha"].dt.year
     df_pluv_raw["Mes"] = df_pluv_raw["Fecha"].dt.month
 
-    # Carga datos históricos
     df_hist_raw = pd.read_excel(
         archivo_excel, 
         sheet_name="Datos Historicos", 
@@ -97,10 +90,7 @@ try:
     df_hist_raw = df_hist_raw.dropna(subset=["Fecha"])
     df_hist_raw["Año"] = df_hist_raw["Fecha"].dt.year
     df_hist_raw["Mes"] = df_hist_raw["Fecha"].dt.month
-
-    # Verificación de datos cargados
     st.session_state.datos_cargados = True
-
 except Exception as e:
     st.error(f"Error al cargar los datos: {str(e)}")
     st.session_state.datos_cargados = False
@@ -108,47 +98,52 @@ except Exception as e:
 
 # === PROCESAMIENTO DE DATOS ===
 # Filtrado por años
-df_2025 = df_pluv_raw[df_pluv_raw["Año"] == 2025]
-df_2024 = df_pluv_raw[df_pluv_raw["Año"] == 2024]
-df_5y = df_pluv_raw[df_pluv_raw["Año"].between(2020, 2024)]
-df_5y_avg = df_5y.groupby("Mes")["Precipitacion"].mean().reset_index()
+# Usar los mismos DataFrames para KPIs y gráficos
+mask_2025 = (df_pluv_raw["Año"] == 2025)
+mask_2024 = (df_pluv_raw["Año"] == 2024)
+mask_5y = df_pluv_raw["Año"].between(2020, 2024)
 
-dfh_2025 = df_hist_raw[df_hist_raw["Año"] == 2025]
-dfh_2024 = df_hist_raw[df_hist_raw["Año"] == 2024]
-dfh_5y = df_hist_raw[df_hist_raw["Año"].between(2020, 2024)]
+# Precipitaciones
+pluv_2025 = df_pluv_raw[mask_2025]
+pluv_2024 = df_pluv_raw[mask_2024]
+pluv_5y = df_pluv_raw[mask_5y]
+pluv_5y_avg = pluv_5y.groupby("Mes")["Precipitacion"].mean().reindex(range(1,13), fill_value=0)
+
+# Generación y ventas
+maskh_2025 = (df_hist_raw["Año"] == 2025)
+maskh_2024 = (df_hist_raw["Año"] == 2024)
+maskh_5y = df_hist_raw["Año"].between(2020, 2024)
+
+dfh_2025 = df_hist_raw[maskh_2025]
+dfh_2024 = df_hist_raw[maskh_2024]
+dfh_5y = df_hist_raw[maskh_5y]
 
 # === FUNCIONES PARA OBTENER VALORES ===
-def get_monthly_value(df, year_col, month_col, value_col, target_year, target_month):
-    try:
-        return df[(df[year_col] == target_year) & (df[month_col] == target_month)][value_col].sum()
-    except:
-        return 0
+def get_monthly(df, col, month):
+    return df[df["Mes"] == month][col].sum()
 
-def get_accumulated_value(df, year_col, month_col, value_col, target_year, max_month):
-    try:
-        return df[(df[year_col] == target_year) & (df[month_col] <= max_month)][value_col].sum()
-    except:
-        return 0
+def get_accumulated(df, col, month):
+    return df[df["Mes"] <= month][col].sum()
 
-# === CÁLCULO DE KPIs ===
-# KPIs mensuales
-prec_2025 = get_monthly_value(df_pluv_raw, "Año", "Mes", "Precipitacion", 2025, mes_num)
-prec_2024 = get_monthly_value(df_pluv_raw, "Año", "Mes", "Precipitacion", 2024, mes_num)
-prec_5y = df_5y_avg[df_5y_avg["Mes"] == mes_num]["Precipitacion"].values[0] if mes_num in df_5y_avg["Mes"].values else 0
+# === KPIs Y DATOS PARA GRÁFICOS (2025) ===
+# Precipitaciones
+prec_2025_mes = get_monthly(pluv_2025, "Precipitacion", mes_num)
+prec_2024_mes = get_monthly(pluv_2024, "Precipitacion", mes_num)
+prec_5y_mes = pluv_5y_avg.loc[mes_num] if mes_num in pluv_5y_avg.index else 0
+prec_2025_acum = get_accumulated(pluv_2025, "Precipitacion", mes_num)
+prec_2024_acum = get_accumulated(pluv_2024, "Precipitacion", mes_num)
 
-gen_2025 = get_monthly_value(df_hist_raw, "Año", "Mes", "Generación Bornes (kWh)", 2025, mes_num)
-gen_2024 = get_monthly_value(df_hist_raw, "Año", "Mes", "Generación Bornes (kWh)", 2024, mes_num)
+# Generación
+gen_2025_mes = get_monthly(dfh_2025, "Generación Bornes (kWh)", mes_num)
+gen_2024_mes = get_monthly(dfh_2024, "Generación Bornes (kWh)", mes_num)
+gen_2025_acum = get_accumulated(dfh_2025, "Generación Bornes (kWh)", mes_num)
+gen_2024_acum = get_accumulated(dfh_2024, "Generación Bornes (kWh)", mes_num)
 
-venta_2025 = get_monthly_value(df_hist_raw, "Año", "Mes", "Facturacion (USD$)", 2025, mes_num)
-venta_2024 = get_monthly_value(df_hist_raw, "Año", "Mes", "Facturacion (USD$)", 2024, mes_num)
-
-# KPIs acumulados
-prec_acum_2025 = get_accumulated_value(df_pluv_raw, "Año", "Mes", "Precipitacion", 2025, mes_num)
-prec_acum_2024 = get_accumulated_value(df_pluv_raw, "Año", "Mes", "Precipitacion", 2024, mes_num)
-gen_acum_2025 = get_accumulated_value(df_hist_raw, "Año", "Mes", "Generación Bornes (kWh)", 2025, mes_num)
-gen_acum_2024 = get_accumulated_value(df_hist_raw, "Año", "Mes", "Generación Bornes (kWh)", 2024, mes_num)
-venta_acum_2025 = get_accumulated_value(df_hist_raw, "Año", "Mes", "Facturacion (USD$)", 2025, mes_num)
-venta_acum_2024 = get_accumulated_value(df_hist_raw, "Año", "Mes", "Facturacion (USD$)", 2024, mes_num)
+# Ventas
+venta_2025_mes = get_monthly(dfh_2025, "Facturacion (USD$)", mes_num)
+venta_2024_mes = get_monthly(dfh_2024, "Facturacion (USD$)", mes_num)
+venta_2025_acum = get_accumulated(dfh_2025, "Facturacion (USD$)", mes_num)
+venta_2024_acum = get_accumulated(dfh_2024, "Facturacion (USD$)", mes_num)
 
 # === VISUALIZACIÓN DE KPIs ===
 st.markdown(f"## 📊 Indicadores de {mes_seleccionado}")
@@ -164,76 +159,26 @@ def display_metric(col, title, value_2025, value_2024, unit):
     )
     col.markdown(calcular_delta(value_2025, value_2024, unit), unsafe_allow_html=True)
 
-# Métricas mensuales
 col1, col2, col3 = st.columns(3)
-display_metric(col1, "Precipitaciones Mensuales 2025", prec_2025, prec_2024, "mm")
-display_metric(col2, "Generación Mensual 2025", gen_2025, gen_2024, "kWh")
-display_metric(col3, "Ventas Mensuales 2025", venta_2025, venta_2024, "USD")
+display_metric(col1, "Precipitaciones Mensuales 2025", prec_2025_mes, prec_2024_mes, "mm")
+display_metric(col2, "Generación Mensual 2025", gen_2025_mes, gen_2024_mes, "kWh")
+display_metric(col3, "Ventas Mensuales 2025", venta_2025_mes, venta_2024_mes, "USD")
 
-# Métricas acumuladas
 col4, col5, col6 = st.columns(3)
-display_metric(col4, "Precipitaciones Acumuladas 2025", prec_acum_2025, prec_acum_2024, "mm")
-display_metric(col5, "Generación Acumulada 2025", gen_acum_2025, gen_acum_2024, "kWh")
-display_metric(col6, "Ventas Acumuladas 2025", venta_acum_2025, venta_acum_2024, "USD")
+display_metric(col4, "Precipitaciones Acumuladas 2025", prec_2025_acum, prec_2024_acum, "mm")
+display_metric(col5, "Generación Acumulada 2025", gen_2025_acum, gen_2024_acum, "kWh")
+display_metric(col6, "Ventas Acumuladas 2025", venta_2025_acum, venta_2024_acum, "USD")
 
 # === GRÁFICOS ===
-try:
-    plt.style.use('seaborn-v0_8')  # Estilo moderno para gráficos
-except:
-    plt.style.use('seaborn')  # Fallback para versiones anteriores
-
+plt.style.use('seaborn-v0_8')
 mes_labels = list(meses.keys())
 
-def create_line_plot(data_2025, data_2024, data_5y, title, ylabel):
-    fig, ax = plt.subplots(figsize=(10, 4))
-    
-    # Asegurar que todos los meses estén representados
-    meses_completos = range(1, 13)
-    data_2025 = data_2025.reindex(meses_completos, fill_value=0)
-    data_2024 = data_2024.reindex(meses_completos, fill_value=0)
-    data_5y = data_5y.reindex(meses_completos, fill_value=0)
-    
-    ax.plot(
-        mes_labels, 
-        data_2025, 
-        label="2025", 
-        marker="o", 
-        linewidth=2.5,
-        color="#3498db"
-    )
-    ax.plot(
-        mes_labels, 
-        data_2024, 
-        label="2024", 
-        marker="o", 
-        linewidth=2.5,
-        color="#e74c3c"
-    )
-    ax.plot(
-        mes_labels, 
-        data_5y, 
-        label="Prom. 2020-2024", 
-        linestyle="--", 
-        marker="o", 
-        linewidth=2,
-        color="#2ecc71"
-    )
-    
-    ax.set_title(title, fontsize=16, pad=20, fontweight='bold')
-    ax.set_ylabel(ylabel, fontsize=12)
-    ax.legend(frameon=True, facecolor='white', fontsize=10)
-    ax.grid(True, linestyle='--', alpha=0.4, axis='y')
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    return fig
-
-# Gráfico de barras de precipitaciones
+# Precipitaciones mensuales (barras)
 st.markdown("### 🌧️ Comparación Mensual de Precipitaciones")
 fig_bar, ax_bar = plt.subplots(figsize=(8, 4))
 labels = ["2025", "2024", "Prom. 5 años"]
-valores = [prec_2025, prec_2024, prec_5y]
+valores = [prec_2025_mes, prec_2024_mes, prec_5y_mes]
 colores = ["#3498db", "#e74c3c", "#2ecc71"]
-
 bars = ax_bar.bar(labels, valores, color=colores, width=0.6)
 for bar, valor in zip(bars, valores):
     ax_bar.text(
@@ -245,51 +190,62 @@ for bar, valor in zip(bars, valores):
         fontweight='bold',
         fontsize=12
     )
-
 ax_bar.set_ylabel("mm", fontsize=12)
 ax_bar.set_ylim(0, max(valores)*1.2)
 ax_bar.grid(axis="y", linestyle="--", alpha=0.3)
 plt.tight_layout()
 st.pyplot(fig_bar)
 
-# Gráficos de línea temporales
+# Precipitaciones anuales (línea)
 st.markdown("### 📈 Precipitaciones Anuales")
-prec_serie_2025 = df_2025.groupby("Mes")["Precipitacion"].sum()
-prec_serie_2024 = df_2024.groupby("Mes")["Precipitacion"].sum()
-prec_serie_5y = df_5y.groupby("Mes")["Precipitacion"].mean()
-st.pyplot(create_line_plot(prec_serie_2025, prec_serie_2024, prec_serie_5y, "Precipitaciones por Mes", "mm"))
+prec_serie_2025 = pluv_2025.groupby("Mes")["Precipitacion"].sum().reindex(range(1,13), fill_value=0)
+prec_serie_2024 = pluv_2024.groupby("Mes")["Precipitacion"].sum().reindex(range(1,13), fill_value=0)
+prec_serie_5y = pluv_5y.groupby("Mes")["Precipitacion"].mean().reindex(range(1,13), fill_value=0)
+fig_line, ax_line = plt.subplots(figsize=(10, 4))
+ax_line.plot(mes_labels, prec_serie_2025, label="2025", marker="o", linewidth=2.5, color="#3498db")
+ax_line.plot(mes_labels, prec_serie_2024, label="2024", marker="o", linewidth=2.5, color="#e74c3c")
+ax_line.plot(mes_labels, prec_serie_5y, label="Prom. 2020-2024", linestyle="--", marker="o", linewidth=2, color="#2ecc71")
+ax_line.set_title("Precipitaciones por Mes", fontsize=16, pad=20, fontweight='bold')
+ax_line.set_ylabel("mm", fontsize=12)
+ax_line.legend(frameon=True, facecolor='white', fontsize=10)
+ax_line.grid(True, linestyle='--', alpha=0.4, axis='y')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+st.pyplot(fig_line)
 
-# Gráfico de generación de energía - CON CORRECCIÓN
+# Generación mensual (línea)
 st.markdown("### 🔌 Energía Generada Mensual")
-try:
-    gen_serie_2025 = dfh_2025.groupby("Mes")["Generación Bornes (kWh)"].sum()
-    gen_serie_2024 = dfh_2024.groupby("Mes")["Generación Bornes (kWh)"].sum()
-    gen_serie_5y = dfh_5y.groupby("Mes")["Generación Bornes (kWh)"].mean()
-    
-    # Verificación de datos
-    if gen_serie_2025.empty:
-        st.warning("No hay datos de generación para 2025")
-    else:
-        st.pyplot(create_line_plot(gen_serie_2025, gen_serie_2024, gen_serie_5y, 
-                                 "Energía Generada por Mes", "kWh"))
-except Exception as e:
-    st.error(f"Error al generar gráfico de producción: {str(e)}")
+gen_serie_2025 = dfh_2025.groupby("Mes")["Generación Bornes (kWh)"].sum().reindex(range(1,13), fill_value=0)
+gen_serie_2024 = dfh_2024.groupby("Mes")["Generación Bornes (kWh)"].sum().reindex(range(1,13), fill_value=0)
+gen_serie_5y = dfh_5y.groupby("Mes")["Generación Bornes (kWh)"].mean().reindex(range(1,13), fill_value=0)
+fig_gen, ax_gen = plt.subplots(figsize=(10, 4))
+ax_gen.plot(mes_labels, gen_serie_2025, label="2025", marker="o", linewidth=2.5, color="#3498db")
+ax_gen.plot(mes_labels, gen_serie_2024, label="2024", marker="o", linewidth=2.5, color="#e74c3c")
+ax_gen.plot(mes_labels, gen_serie_5y, label="Prom. 2020-2024", linestyle="--", marker="o", linewidth=2, color="#2ecc71")
+ax_gen.set_title("Energía Generada por Mes", fontsize=16, pad=20, fontweight='bold')
+ax_gen.set_ylabel("kWh", fontsize=12)
+ax_gen.legend(frameon=True, facecolor='white', fontsize=10)
+ax_gen.grid(True, linestyle='--', alpha=0.4, axis='y')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+st.pyplot(fig_gen)
 
-# Gráfico de ventas - CON CORRECCIÓN
+# Ventas mensuales (línea)
 st.markdown("### 💰 Ventas Mensuales")
-try:
-    venta_serie_2025 = dfh_2025.groupby("Mes")["Facturacion (USD$)"].sum()
-    venta_serie_2024 = dfh_2024.groupby("Mes")["Facturacion (USD$)"].sum()
-    venta_serie_5y = dfh_5y.groupby("Mes")["Facturacion (USD$)"].mean()
-    
-    # Verificación de datos
-    if venta_serie_2025.empty:
-        st.warning("No hay datos de ventas para 2025")
-    else:
-        st.pyplot(create_line_plot(venta_serie_2025, venta_serie_2024, venta_serie_5y,
-                                 "Ventas por Mes", "USD"))
-except Exception as e:
-    st.error(f"Error al generar gráfico de ventas: {str(e)}")
+venta_serie_2025 = dfh_2025.groupby("Mes")["Facturacion (USD$)"].sum().reindex(range(1,13), fill_value=0)
+venta_serie_2024 = dfh_2024.groupby("Mes")["Facturacion (USD$)"].sum().reindex(range(1,13), fill_value=0)
+venta_serie_5y = dfh_5y.groupby("Mes")["Facturacion (USD$)"].mean().reindex(range(1,13), fill_value=0)
+fig_venta, ax_venta = plt.subplots(figsize=(10, 4))
+ax_venta.plot(mes_labels, venta_serie_2025, label="2025", marker="o", linewidth=2.5, color="#3498db")
+ax_venta.plot(mes_labels, venta_serie_2024, label="2024", marker="o", linewidth=2.5, color="#e74c3c")
+ax_venta.plot(mes_labels, venta_serie_5y, label="Prom. 2020-2024", linestyle="--", marker="o", linewidth=2, color="#2ecc71")
+ax_venta.set_title("Ventas por Mes", fontsize=16, pad=20, fontweight='bold')
+ax_venta.set_ylabel("USD", fontsize=12)
+ax_venta.legend(frameon=True, facecolor='white', fontsize=10)
+ax_venta.grid(True, linestyle='--', alpha=0.4, axis='y')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+st.pyplot(fig_venta)
 
 # === PIE DE PÁGINA ===
 st.markdown("---")
