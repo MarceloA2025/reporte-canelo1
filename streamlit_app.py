@@ -156,11 +156,11 @@ st.markdown(f"## 📊 Indicadores de {mes_seleccionado}")
 
 def display_metric(col, title, value_2025, value_2024, unit):
     col.markdown(
-        f"<div style='font-size:18px; margin-bottom:5px;'>{title}</div>",
+        f"<div style='font-size:24px; margin-bottom:5px;'>{title}</div>",
         unsafe_allow_html=True
     )
     col.markdown(
-        f"<div style='font-size:32px; font-weight:bold; margin-bottom:10px;'>{value_2025:,.1f} {unit}</div>",
+        f"<div style='font-size:32px; font-weight:bold; margin-bottom:5px;'>{value_2025:,.1f} {unit}</div>",
         unsafe_allow_html=True
     )
     col.markdown(calcular_delta(value_2025, value_2024, unit), unsafe_allow_html=True)
