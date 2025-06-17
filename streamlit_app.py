@@ -1,4 +1,3 @@
-# Importación de librerías
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -23,7 +22,7 @@ def calcular_delta(valor_2025, valor_2024, unidad):
         delta_pct = (delta_abs / valor_2024) * 100
     
     color = "green" if delta_abs >= 0 else "red"
-    return f"<span style='color:{color}; font-size:24px;'>{delta_abs:+,.0f} {unidad} ({delta_pct:+.1f}%)</span> vs 2024"
+    return f"<span style='color:{color}; font-size:18px;'>{delta_abs:+,.0f} {unidad} ({delta_pct:+.1f}%)</span> vs 2024"
 
 # === INTERFAZ DE USUARIO ===
 st.markdown("<h2 style='text-align:center; font-family:Arial; color:#333333;'>📅 Seleccione el Mes</h2>", unsafe_allow_html=True)
@@ -37,7 +36,7 @@ meses = {
 mes_seleccionado = st.selectbox(
     "", 
     list(meses.keys()), 
-    index=3,
+    index=3,  # Abril por defecto
     label_visibility="collapsed"
 )
 mes_num = meses[mes_seleccionado]
@@ -61,15 +60,11 @@ with col_title:
 
 # === CARGA DE DATOS ===
 try:
-    # Opción 1: Ruta relativa (recomendado)
-    archivo_excel = "HEC mensuales 2025.xlsx"
+    # Usar pathlib para manejo correcto de rutas
+    archivo_excel = Path("HEC mensuales 2025.xlsx")
     
-    # Opción 2: Ruta absoluta (descomenta y ajusta)
-    # archivo_excel = r"C:\Users\TuUsuario\OneDrive\Documentos\Python VSCode\REPORTE WEB\HEC mensuales 2025.xlsx"
-    
-    # Verificar existencia del archivo
-    if not os.path.exists(archivo_excel):
-        st.error(f"Archivo no encontrado en: {os.path.abspath(archivo_excel)}")
+    if not archivo_excel.exists():
+        st.error(f"Archivo no encontrado en: {archivo_excel.absolute()}")
         st.stop()
 
     # Carga datos de pluviometría
@@ -103,8 +98,12 @@ try:
     df_hist_raw["Año"] = df_hist_raw["Fecha"].dt.year
     df_hist_raw["Mes"] = df_hist_raw["Fecha"].dt.month
 
+    # Verificación de datos cargados
+    st.session_state.datos_cargados = True
+
 except Exception as e:
     st.error(f"Error al cargar los datos: {str(e)}")
+    st.session_state.datos_cargados = False
     st.stop()
 
 # === PROCESAMIENTO DE DATOS ===
@@ -132,7 +131,7 @@ def get_accumulated_value(df, year_col, month_col, value_col, target_year, max_m
         return 0
 
 # === CÁLCULO DE KPIs ===
-# Mensuales
+# KPIs mensuales
 prec_2025 = get_monthly_value(df_pluv_raw, "Año", "Mes", "Precipitacion", 2025, mes_num)
 prec_2024 = get_monthly_value(df_pluv_raw, "Año", "Mes", "Precipitacion", 2024, mes_num)
 prec_5y = df_5y_avg[df_5y_avg["Mes"] == mes_num]["Precipitacion"].values[0] if mes_num in df_5y_avg["Mes"].values else 0
@@ -143,7 +142,7 @@ gen_2024 = get_monthly_value(df_hist_raw, "Año", "Mes", "Generación Bornes (kW
 venta_2025 = get_monthly_value(df_hist_raw, "Año", "Mes", "Facturacion (USD$)", 2025, mes_num)
 venta_2024 = get_monthly_value(df_hist_raw, "Año", "Mes", "Facturacion (USD$)", 2024, mes_num)
 
-# Acumulados
+# KPIs acumulados
 prec_acum_2025 = get_accumulated_value(df_pluv_raw, "Año", "Mes", "Precipitacion", 2025, mes_num)
 prec_acum_2024 = get_accumulated_value(df_pluv_raw, "Año", "Mes", "Precipitacion", 2024, mes_num)
 gen_acum_2025 = get_accumulated_value(df_hist_raw, "Año", "Mes", "Generación Bornes (kWh)", 2025, mes_num)
@@ -156,11 +155,11 @@ st.markdown(f"## 📊 Indicadores de {mes_seleccionado}")
 
 def display_metric(col, title, value_2025, value_2024, unit):
     col.markdown(
-        f"<div style='font-size:32px; margin-bottom:5px;'>{title}</div>",
+        f"<div style='font-size:24px; margin-bottom:8px; font-weight:bold;'>{title}</div>",
         unsafe_allow_html=True
     )
     col.markdown(
-        f"<div style='font-size:32px; font-weight:bold; margin-bottom:5px;'>{value_2025:,.1f} {unit}</div>",
+        f"<div style='font-size:42px; font-weight:bold; margin-bottom:8px;'>{value_2025:,.1f} {unit}</div>",
         unsafe_allow_html=True
     )
     col.markdown(calcular_delta(value_2025, value_2024, unit), unsafe_allow_html=True)
@@ -178,18 +177,24 @@ display_metric(col5, "Generación Acumulada 2025", gen_acum_2025, gen_acum_2024,
 display_metric(col6, "Ventas Acumuladas 2025", venta_acum_2025, venta_acum_2024, "USD")
 
 # === GRÁFICOS ===
-# CORRECCIÓN: Usar 'seaborn-v0_8' en lugar de 'seaborn' para versiones recientes
 try:
-    plt.style.use('seaborn-v0_8')  # Para matplotlib >= 3.6
+    plt.style.use('seaborn-v0_8')  # Estilo moderno para gráficos
 except:
-    plt.style.use('seaborn')  # Para versiones anteriores
+    plt.style.use('seaborn')  # Fallback para versiones anteriores
 
 mes_labels = list(meses.keys())
 
 def create_line_plot(data_2025, data_2024, data_5y, title, ylabel):
     fig, ax = plt.subplots(figsize=(10, 4))
+    
+    # Asegurar que todos los meses estén representados
+    meses_completos = range(1, 13)
+    data_2025 = data_2025.reindex(meses_completos, fill_value=0)
+    data_2024 = data_2024.reindex(meses_completos, fill_value=0)
+    data_5y = data_5y.reindex(meses_completos, fill_value=0)
+    
     ax.plot(
-        mes_labels[:len(data_2025)], 
+        mes_labels, 
         data_2025, 
         label="2025", 
         marker="o", 
@@ -197,7 +202,7 @@ def create_line_plot(data_2025, data_2024, data_5y, title, ylabel):
         color="#3498db"
     )
     ax.plot(
-        mes_labels[:len(data_2024)], 
+        mes_labels, 
         data_2024, 
         label="2024", 
         marker="o", 
@@ -205,7 +210,7 @@ def create_line_plot(data_2025, data_2024, data_5y, title, ylabel):
         color="#e74c3c"
     )
     ax.plot(
-        mes_labels[:len(data_5y)], 
+        mes_labels, 
         data_5y, 
         label="Prom. 2020-2024", 
         linestyle="--", 
@@ -222,7 +227,7 @@ def create_line_plot(data_2025, data_2024, data_5y, title, ylabel):
     plt.tight_layout()
     return fig
 
-# Gráfico de barras
+# Gráfico de barras de precipitaciones
 st.markdown("### 🌧️ Comparación Mensual de Precipitaciones")
 fig_bar, ax_bar = plt.subplots(figsize=(8, 4))
 labels = ["2025", "2024", "Prom. 5 años"]
@@ -247,24 +252,44 @@ ax_bar.grid(axis="y", linestyle="--", alpha=0.3)
 plt.tight_layout()
 st.pyplot(fig_bar)
 
-# Gráficos de línea
+# Gráficos de línea temporales
 st.markdown("### 📈 Precipitaciones Anuales")
 prec_serie_2025 = df_2025.groupby("Mes")["Precipitacion"].sum()
 prec_serie_2024 = df_2024.groupby("Mes")["Precipitacion"].sum()
 prec_serie_5y = df_5y.groupby("Mes")["Precipitacion"].mean()
 st.pyplot(create_line_plot(prec_serie_2025, prec_serie_2024, prec_serie_5y, "Precipitaciones por Mes", "mm"))
 
+# Gráfico de generación de energía - CON CORRECCIÓN
 st.markdown("### 🔌 Energía Generada Mensual")
-gen_serie_2025 = dfh_2025.groupby("Mes")["Generación Bornes (kWh)"].sum()
-gen_serie_2024 = dfh_2024.groupby("Mes")["Generación Bornes (kWh)"].sum()
-gen_serie_5y = dfh_5y.groupby("Mes")["Generación Bornes (kWh)"].mean()
-st.pyplot(create_line_plot(gen_serie_2025, gen_serie_2024, gen_serie_5y, "Energía Generada por Mes", "kWh"))
+try:
+    gen_serie_2025 = dfh_2025.groupby("Mes")["Generación Bornes (kWh)"].sum()
+    gen_serie_2024 = dfh_2024.groupby("Mes")["Generación Bornes (kWh)"].sum()
+    gen_serie_5y = dfh_5y.groupby("Mes")["Generación Bornes (kWh)"].mean()
+    
+    # Verificación de datos
+    if gen_serie_2025.empty:
+        st.warning("No hay datos de generación para 2025")
+    else:
+        st.pyplot(create_line_plot(gen_serie_2025, gen_serie_2024, gen_serie_5y, 
+                                 "Energía Generada por Mes", "kWh"))
+except Exception as e:
+    st.error(f"Error al generar gráfico de producción: {str(e)}")
 
+# Gráfico de ventas - CON CORRECCIÓN
 st.markdown("### 💰 Ventas Mensuales")
-venta_serie_2025 = dfh_2025.groupby("Mes")["Facturacion (USD$)"].sum()
-venta_serie_2024 = dfh_2024.groupby("Mes")["Facturacion (USD$)"].sum()
-venta_serie_5y = dfh_5y.groupby("Mes")["Facturacion (USD$)"].mean()
-st.pyplot(create_line_plot(venta_serie_2025, venta_serie_2024, venta_serie_5y, "Ventas por Mes", "USD"))
+try:
+    venta_serie_2025 = dfh_2025.groupby("Mes")["Facturacion (USD$)"].sum()
+    venta_serie_2024 = dfh_2024.groupby("Mes")["Facturacion (USD$)"].sum()
+    venta_serie_5y = dfh_5y.groupby("Mes")["Facturacion (USD$)"].mean()
+    
+    # Verificación de datos
+    if venta_serie_2025.empty:
+        st.warning("No hay datos de ventas para 2025")
+    else:
+        st.pyplot(create_line_plot(venta_serie_2025, venta_serie_2024, venta_serie_5y,
+                                 "Ventas por Mes", "USD"))
+except Exception as e:
+    st.error(f"Error al generar gráfico de ventas: {str(e)}")
 
 # === PIE DE PÁGINA ===
 st.markdown("---")
