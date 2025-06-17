@@ -1,146 +1,101 @@
-# === CONFIGURACION DE PAGINA ===
-import streamlit as st
 import pandas as pd
+import streamlit as st
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-import numpy as np
 
-st.set_page_config(page_title="Reporte Mensual", layout="wide")
+# === CONFIGURACIÓN DE PÁGINA ===
+st.set_page_config(page_title="Reporte Mensual Hidroeléctrica", layout="wide")
 
-# === FUNCION PARA FORMATO DE DELTA ===
-def calcular_delta(valor_2025, valor_2024, unidad):
-    if valor_2024 == 0:
-        delta_abs = valor_2025
-        delta_pct = 0.0
-    else:
-        delta_abs = valor_2025 - valor_2024
-        delta_pct = (delta_abs / valor_2024) * 100
-    return f"{delta_abs:+,.1f} {unidad} ({delta_pct:+.1f}%) vs 2024"
+# === CARGA DE ARCHIVO ===
+archivo_excel = "C:/One Drive Hotmail/OneDrive/Documentos/Python VSCode/REPORTE WEB/HEC mensuales 2025.xlsx"
 
-# === SIDEBAR: SELECCION DE MES ===
-meses = {
-    "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
-    "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
-    "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
-}
-st.sidebar.header("📅 Seleccionar mes")
-mes_seleccionado = st.sidebar.selectbox("Mes", list(meses.keys()))
-mes_num = meses[mes_seleccionado]
-
-# === ENCABEZADO CON LOGO Y TITULO ===
-col_logo, col_title = st.columns([1, 9])
-with col_logo:
-    st.image("logo.jpg", width=180)
-with col_title:
-    st.markdown(f"<h1 style='font-size: 48px; margin-bottom: 0;'>Reporte Mensual {mes_seleccionado} 2025</h1>", unsafe_allow_html=True)
-
-# === CARGA Y PROCESAMIENTO DE DATOS ===
-archivo_excel = "HEC mensuales 2025.xlsx"
+# === CARGA DE DATOS ===
 df_pluv_raw = pd.read_excel(archivo_excel, sheet_name="Pluviometria", skiprows=127, usecols="C:D")
-df_pluv = df_pluv_raw.rename(columns={df_pluv_raw.columns[0]: "Fecha", df_pluv_raw.columns[1]: "Precipitacion"})
-df_pluv["Fecha"] = pd.to_datetime(df_pluv["Fecha"])
-df_pluv["Año"] = df_pluv["Fecha"].dt.year
-df_pluv["Mes"] = df_pluv["Fecha"].dt.month
+df_gen_raw = pd.read_excel(archivo_excel, sheet_name="Datos Historicos", skiprows=195, usecols="C:F")
+df_ventas_raw = pd.read_excel(archivo_excel, sheet_name="Datos Historicos", skiprows=195, usecols="C:H")
 
-df_hist_raw = pd.read_excel(archivo_excel, sheet_name="Datos Historicos", skiprows=195, usecols="C:G")
-df_hist = df_hist_raw.rename(columns={df_hist_raw.columns[0]: "Fecha"})
-df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors='coerce')
-df_hist = df_hist.dropna(subset=["Fecha"])
-df_hist["Año"] = df_hist["Fecha"].dt.year
-df_hist["Mes"] = df_hist["Fecha"].dt.month
+# === PROCESAMIENTO DE DATOS ===
+df_pluv_raw.columns = ["Mes", "Precipitacion"]
+df_gen_raw.columns = ["Mes", "Gen_2025", "Gen_2024", "Gen_5y"]
+df_ventas_raw.columns = ["Mes", "Ventas_2025", "Ventas_2024", "Ventas_5y"]
 
-# === FILTROS POR AÑO ===
-df_hist_2025 = df_hist[df_hist["Año"] == 2025]
-df_hist_2024 = df_hist[df_hist["Año"] == 2024]
-df_hist_5y = df_hist[df_hist["Año"].between(2020, 2024)]
+df_pluv_raw["Mes"] = pd.Categorical(df_pluv_raw["Mes"], categories=[
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", 
+    "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"], ordered=True)
 
-df_2025 = df_pluv[df_pluv["Año"] == 2025]
-df_2024 = df_pluv[df_pluv["Año"] == 2024]
+# === SELECCIÓN DE MES (EN CUERPO) ===
+st.title("📊 Reporte Mensual Hidroeléctrica - 2025")
+mes_seleccionado = st.selectbox("Selecciona un mes", df_pluv_raw["Mes"].dropna().tolist(), index=5)
+mes_num = df_pluv_raw[df_pluv_raw["Mes"] == mes_seleccionado].index[0] + 1
 
-# === CÁLCULO PROMEDIO 5 AÑOS PRECIPITACIÓN ===
-df_5y_avg = df_pluv[df_pluv["Año"].between(2020, 2024)].groupby("Mes")["Precipitacion"].mean()
-prec_5y = df_5y_avg.loc[mes_num] if mes_num in df_5y_avg.index else 0
+# === EXTRACCIÓN DE DATOS DEL MES SELECCIONADO ===
+prec_2025 = df_pluv_raw.loc[mes_num - 1, "Precipitacion"]
+prec_2024 = df_gen_raw.loc[mes_num - 1, "Gen_2024"]
+gen_2025 = df_gen_raw.loc[mes_num - 1, "Gen_2025"]
+gen_2024 = df_gen_raw.loc[mes_num - 1, "Gen_2024"]
+venta_2025 = df_ventas_raw.loc[mes_num - 1, "Ventas_2025"]
+venta_2024 = df_ventas_raw.loc[mes_num - 1, "Ventas_2024"]
 
-# === KPI MENSUALES ===
-prec_2025 = df_2025[df_2025["Mes"] == mes_num]["Precipitacion"].sum()
-prec_2024 = df_2024[df_2024["Mes"] == mes_num]["Precipitacion"].sum()
+# === ACUMULADOS ===
+acum_prec_2025 = df_pluv_raw.iloc[:mes_num]["Precipitacion"].sum()
+acum_prec_2024 = df_gen_raw.iloc[:mes_num]["Gen_2024"].sum()
+acum_gen_2025 = df_gen_raw.iloc[:mes_num]["Gen_2025"].sum()
+acum_gen_2024 = df_gen_raw.iloc[:mes_num]["Gen_2024"].sum()
+acum_venta_2025 = df_ventas_raw.iloc[:mes_num]["Ventas_2025"].sum()
+acum_venta_2024 = df_ventas_raw.iloc[:mes_num]["Ventas_2024"].sum()
 
-gen_2025 = df_hist_2025[df_hist_2025["Mes"] == mes_num]["Generación Bornes (kWh)"].sum()
-gen_2024 = df_hist_2024[df_hist_2024["Mes"] == mes_num]["Generación Bornes (kWh)"].sum()
+# === FUNCION PARA DELTA ===
+def calcular_delta(valor_actual, valor_anterior):
+    delta = valor_actual - valor_anterior
+    delta_pct = (delta / valor_anterior * 100) if valor_anterior != 0 else 0
+    return delta, delta_pct
 
-venta_2025 = df_hist_2025[df_hist_2025["Mes"] == mes_num]["Facturacion (USD$)"].sum()
-venta_2024 = df_hist_2024[df_hist_2024["Mes"] == mes_num]["Facturacion (USD$)"].sum()
+# === DELTAS ===
+delta_prec, delta_prec_pct = calcular_delta(prec_2025, prec_2024)
+delta_gen, delta_gen_pct = calcular_delta(gen_2025, gen_2024)
+delta_venta, delta_venta_pct = calcular_delta(venta_2025, venta_2024)
+delta_acum_prec, delta_acum_prec_pct = calcular_delta(acum_prec_2025, acum_prec_2024)
+delta_acum_gen, delta_acum_gen_pct = calcular_delta(acum_gen_2025, acum_gen_2024)
+delta_acum_venta, delta_acum_venta_pct = calcular_delta(acum_venta_2025, acum_venta_2024)
 
-# === KPI ACUMULADOS ===
-prec_acum_2025 = df_2025[df_2025["Mes"] <= mes_num]["Precipitacion"].sum()
-prec_acum_2024 = df_2024[df_2024["Mes"] <= mes_num]["Precipitacion"].sum()
+# === KPIs ===
+st.subheader("📌 Indicadores Clave (KPI)")
+kpi1, kpi2, kpi3 = st.columns(3)
+kpi4, kpi5, kpi6 = st.columns(3)
 
-gen_acum_2025 = df_hist_2025[df_hist_2025["Mes"] <= mes_num]["Generación Bornes (kWh)"].sum()
-gen_acum_2024 = df_hist_2024[df_hist_2024["Mes"] <= mes_num]["Generación Bornes (kWh)"].sum()
+kpi1.metric("Precipitación Mensual 2025", f"{prec_2025:.1f} mm", f"{delta_prec:+.1f} mm ({delta_prec_pct:+.1f}%) vs 2024")
+kpi2.metric("Generación Mensual 2025", f"{gen_2025:,.0f} kWh", f"{delta_gen:+,.0f} ({delta_gen_pct:+.1f}%) vs 2024")
+kpi3.metric("Ventas Mensuales 2025", f"${venta_2025:,.0f}", f"{delta_venta:+,.0f} ({delta_venta_pct:+.1f}%) vs 2024")
+kpi4.metric("Precipitación Acumulada 2025", f"{acum_prec_2025:.1f} mm", f"{delta_acum_prec:+.1f} mm ({delta_acum_prec_pct:+.1f}%) vs 2024")
+kpi5.metric("Generación Acumulada 2025", f"{acum_gen_2025:,.0f} kWh", f"{delta_acum_gen:+,.0f} ({delta_acum_gen_pct:+.1f}%) vs 2024")
+kpi6.metric("Ventas Acumuladas 2025", f"${acum_venta_2025:,.0f}", f"{delta_acum_venta:+,.0f} ({delta_acum_venta_pct:+.1f}%) vs 2024")
 
-venta_acum_2025 = df_hist_2025[df_hist_2025["Mes"] <= mes_num]["Facturacion (USD$)"].sum()
-venta_acum_2024 = df_hist_2024[df_hist_2024["Mes"] <= mes_num]["Facturacion (USD$)"].sum()
+# === GRAFICOS ===
+st.subheader("📈 Comparación Visual de Datos")
 
-# === VISUALIZACIÓN KPIs CON % ===
-st.markdown(f"## 📊 Indicadores de {mes_seleccionado}")
-col1, col2, col3 = st.columns(3)
-col1.metric("Precipitaciones Mensuales 2025", f"{prec_2025:.1f} mm", calcular_delta(prec_2025, prec_2024, "mm"))
-col2.metric("Generación Mensual 2025", f"{gen_2025:,.0f} kWh", calcular_delta(gen_2025, gen_2024, "kWh"))
-col3.metric("Ventas Mensuales 2025", f"${venta_2025:,.0f}", calcular_delta(venta_2025, venta_2024, "USD"))
+col1, col2 = st.columns(2)
 
-col4, col5, col6 = st.columns(3)
-col4.metric("Precipitaciones Acumuladas 2025", f"{prec_acum_2025:.1f} mm", calcular_delta(prec_acum_2025, prec_acum_2024, "mm"))
-col5.metric("Generación Acumulada 2025", f"{gen_acum_2025:,.0f} kWh", calcular_delta(gen_acum_2025, gen_acum_2024, "kWh"))
-col6.metric("Ventas Acumuladas 2025", f"${venta_acum_2025:,.0f}", calcular_delta(venta_acum_2025, venta_acum_2024, "USD"))
+# Barras de Precipitación
+with col1:
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.bar(df_pluv_raw["Mes"], df_pluv_raw["Precipitacion"], color="#4c72b0")
+    ax.set_title("Precipitación Mensual 2025")
+    ax.set_ylabel("mm")
+    ax.tick_params(axis="x", rotation=45)
+    st.pyplot(fig)
 
-# === GRAFICO DE BARRAS PRECIPITACIONES ===
-st.markdown(f"### 📊 Precipitaciones - {mes_seleccionado}")
-labels = ["2025", "2024", "Prom. 5 años"]
-valores = [prec_2025, prec_2024, prec_5y]
-colores = ["#1f77b4", "#ff7f0e", "#2ca02c"]
-y_max = max(valores) * 1.25
+# Línea de Precipitación Comparativa
+with col2:
+    fig2, ax2 = plt.subplots(figsize=(6, 4))
+    ax2.plot(df_pluv_raw["Mes"], df_pluv_raw["Precipitacion"], label="2025", marker="o")
+    ax2.plot(df_gen_raw["Mes"], df_gen_raw["Gen_2024"], label="2024", marker="s")
+    ax2.plot(df_gen_raw["Mes"], df_gen_raw["Gen_5y"], label="Promedio 5 años", linestyle="--")
+    ax2.set_title("Precipitación Anual Comparativa")
+    ax2.legend()
+    ax2.tick_params(axis="x", rotation=45)
+    st.pyplot(fig2)
 
-fig_bar, ax_bar = plt.subplots(figsize=(6, 2))
-bars = ax_bar.bar(labels, valores, color=colores, width=0.4)
-for bar, valor in zip(bars, valores):
-    ax_bar.text(bar.get_x() + bar.get_width()/2, valor + y_max*0.02, f"{valor:.1f}", ha='center', va='bottom', fontsize=10)
-ax_bar.set_ylim(0, y_max)
-ax_bar.set_ylabel("mm", fontsize=10)
-ax_bar.set_title(f"Comparación mensual de precipitaciones", fontsize=13)
-ax_bar.grid(axis='y', linestyle='--', alpha=0.3)
-ax_bar.spines["top"].set_visible(False)
-ax_bar.spines["right"].set_visible(False)
-st.pyplot(fig_bar)
+# === PIE DE PÁGINA ===
+st.divider()
+st.caption("🔧 Preparado por Ecoener - Marcelo Arriagada")
 
-# === GRAFICO DE PRODUCCION ANUAL ===
-st.markdown("### 🔌 Producción Anual de Energía")
-gen_serie_2025 = df_hist_2025.groupby("Mes")["Generación Bornes (kWh)"].sum()
-gen_serie_2024 = df_hist_2024.groupby("Mes")["Generación Bornes (kWh)"].sum()
-gen_serie_5y = df_hist_5y.groupby("Mes")["Generación Bornes (kWh)"].mean()
 
-fig_gen, ax_gen = plt.subplots(figsize=(10, 4))
-mes_labels = list(meses.keys())
-ax_gen.plot(mes_labels[:len(gen_serie_2025)], gen_serie_2025, label="2025", marker='o')
-ax_gen.plot(mes_labels[:len(gen_serie_2024)], gen_serie_2024, label="2024", marker='o')
-ax_gen.plot(mes_labels[:len(gen_serie_5y)], gen_serie_5y, label="Prom. 2020-2024", linestyle='--', marker='o')
-ax_gen.set_title("Energía Generada por Mes", fontsize=14)
-ax_gen.set_ylabel("kWh")
-ax_gen.legend()
-ax_gen.grid(True, linestyle='--', alpha=0.5)
-st.pyplot(fig_gen)
-
-# === GRAFICO DE VENTAS ===
-st.markdown("### 💰 Ventas Anuales")
-venta_serie_2025 = df_hist_2025.groupby("Mes")["Facturacion (USD$)"].sum()
-venta_serie_2024 = df_hist_2024.groupby("Mes")["Facturacion (USD$)"].sum()
-venta_serie_5y = df_hist_5y.groupby("Mes")["Facturacion (USD$)"].mean()
-
-fig_venta, ax_venta = plt.subplots(figsize=(10, 4))
-ax_venta.plot(mes_labels[:len(venta_serie_2025)], venta_serie_2025, label="2025", marker='o')
-ax_venta.plot(mes_labels[:len(venta_serie_2024)], venta_serie_2024, label="2024", marker='o')
-ax_venta.plot(mes_labels[:len(venta_serie_5y)], venta_serie_5y, label="Prom. 2020-2024", linestyle='--', marker='o')
-ax_venta.set_title("Ventas por Mes (USD)", fontsize=14)
-ax_venta.set_ylabel("USD")
-ax_venta.legend()
-ax_venta.grid(True, linestyle='--', alpha=0.5)
-st.pyplot(fig_venta)
