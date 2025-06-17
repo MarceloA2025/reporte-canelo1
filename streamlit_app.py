@@ -104,7 +104,7 @@ col6.markdown(calcular_delta(venta_acum_2025, venta_acum_2024, "USD"), unsafe_al
 
 # === GRAFICO BARRAS PRECIPITACIONES MENSUALES ===
 st.markdown("### 🌧️ Comparación Mensual de Precipitaciones")
-fig_bar, ax_bar = plt.subplots(figsize=(6, 3))
+fig_bar, ax_bar = plt.subplots(figsize=(4, 2))
 labels = ["2025", "2024", "Prom. 5 años"]
 valores = [prec_2025, prec_2024, prec_5y]
 colores = ["#1f77b4", "#ff7f0e", "#2ca02c"]
@@ -123,7 +123,7 @@ prec_serie_2024 = df_2024.groupby("Mes")["Precipitacion"].sum()
 prec_serie_5y = df_5y.groupby("Mes")["Precipitacion"].mean()
 mes_labels = list(meses.keys())
 
-fig_prec, ax_prec = plt.subplots(figsize=(10, 4))
+fig_prec, ax_prec = plt.subplots(figsize=(5, 2))
 ax_prec.plot(mes_labels[:len(prec_serie_2025)], prec_serie_2025, label="2025", marker="o")
 ax_prec.plot(mes_labels[:len(prec_serie_2024)], prec_serie_2024, label="2024", marker="o")
 ax_prec.plot(mes_labels[:len(prec_serie_5y)], prec_serie_5y, label="Prom. 2020-2024", linestyle='--', marker="o")
@@ -139,7 +139,7 @@ gen_serie_2025 = dfh_2025.groupby("Mes")["Generación Bornes (kWh)"].sum()
 gen_serie_2024 = dfh_2024.groupby("Mes")["Generación Bornes (kWh)"].sum()
 gen_serie_5y = dfh_5y.groupby("Mes")["Generación Bornes (kWh)"].mean()
 
-fig_gen, ax_gen = plt.subplots(figsize=(10, 4))
+fig_gen, ax_gen = plt.subplots(figsize=(5, 2))
 ax_gen.plot(mes_labels[:len(gen_serie_2025)], gen_serie_2025, label="2025", marker='o')
 ax_gen.plot(mes_labels[:len(gen_serie_2024)], gen_serie_2024, label="2024", marker='o')
 ax_gen.plot(mes_labels[:len(gen_serie_5y)], gen_serie_5y, label="Prom. 2020-2024", linestyle='--', marker='o')
@@ -155,7 +155,7 @@ venta_serie_2025 = dfh_2025.groupby("Mes")["Facturacion (USD$)"].sum()
 venta_serie_2024 = dfh_2024.groupby("Mes")["Facturacion (USD$)"].sum()
 venta_serie_5y = dfh_5y.groupby("Mes")["Facturacion (USD$)"].mean()
 
-fig_venta, ax_venta = plt.subplots(figsize=(10, 4))
+fig_venta, ax_venta = plt.subplots(figsize=(5, 2))
 ax_venta.plot(mes_labels[:len(venta_serie_2025)], venta_serie_2025, label="2025", marker='o')
 ax_venta.plot(mes_labels[:len(venta_serie_2024)], venta_serie_2024, label="2024", marker='o')
 ax_venta.plot(mes_labels[:len(venta_serie_5y)], venta_serie_5y, label="Prom. 2020-2024", linestyle='--', marker='o')
