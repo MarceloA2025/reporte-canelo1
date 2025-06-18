@@ -2,199 +2,128 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
-import os
 
 # === CONFIGURACIÓN INICIAL ===
-st.set_page_config(
-    page_title="Reporte Mensual", 
-    layout="wide",
-    page_icon="📊"
-)
+st.set_page_config(page_title="Reporte Mensual", layout="wide", page_icon="📊")
 
-# === FUNCIÓN PARA CALCULAR DELTAS ===
+# === FUNCIÓN PARA DELTAS ===
 def calcular_delta(valor_2025, valor_2024, unidad):
-    """Calcula la variación entre valores y devuelve texto formateado"""
     if valor_2024 == 0:
         delta_abs = valor_2025
         delta_pct = 0.0
     else:
         delta_abs = valor_2025 - valor_2024
         delta_pct = (delta_abs / valor_2024) * 100
-    
-    color = "#4CAF50" if delta_abs >= 0 else "#F44336"  # Verde/Rojo modernos
-    return f"<span style='color:{color}; font-size:16px; font-family:Arial;'>{delta_abs:+,.0f} {unidad} ({delta_pct:+.1f}%) vs 2024</span>"
+    color = "green" if delta_abs >= 0 else "red"
+    return f"<span style='color:{color}; font-size:32px;'>{delta_abs:+,.0f} {unidad} ({delta_pct:+.1f}%)</span> vs 2024"
 
-# === INTERFAZ DE USUARIO ===
-st.markdown("<h2 style='text-align:center; font-family:Arial; color:#333333;'>📅 Seleccione el Mes</h2>", unsafe_allow_html=True)
-
+# === SELECCIÓN DE MES ===
+st.markdown("<h2 style='text-align:center;'>📅 Seleccione el Mes</h2>", unsafe_allow_html=True)
 meses = {
-    "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
-    "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
-    "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+    "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
+    "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
 }
-
-mes_seleccionado = st.selectbox(
-    "", 
-    list(meses.keys()), 
-    index=3,  # Abril por defecto
-    label_visibility="collapsed"
-)
+mes_seleccionado = st.selectbox("", list(meses.keys()), index=3, label_visibility="collapsed")
 mes_num = meses[mes_seleccionado]
 
 # === ENCABEZADO ===
 col_logo, col_title = st.columns([1, 9])
-
 with col_logo:
     logo_path = Path("logo.jpg")
     if logo_path.exists():
         st.image(str(logo_path), width=180)
     else:
         st.warning("Logo no encontrado")
-
 with col_title:
     st.markdown(
-        f"<h1 style='font-size: 48px; margin-bottom: 0; font-family:Arial; color:#2c3e50;'>"
-        f"Reporte Mensual {mes_seleccionado} 2025</h1>",
+        f"<h1 style='font-size: 48px;'>Reporte Mensual {mes_seleccionado} 2025</h1>",
         unsafe_allow_html=True
     )
 
 # === CARGA DE DATOS ===
 try:
     archivo_excel = Path("HEC mensuales 2025.xlsx")
-    
     if not archivo_excel.exists():
-        st.error(f"Archivo no encontrado en: {archivo_excel.absolute()}")
+        st.error(f"Archivo no encontrado: {archivo_excel.absolute()}")
         st.stop()
 
-    # Carga datos de pluviometría
-    df_pluv_raw = pd.read_excel(
-        archivo_excel, 
-        sheet_name="Pluviometria", 
-        skiprows=127, 
-        usecols="C:D",
-        parse_dates=["Fecha"]
-    )
-    df_pluv_raw.columns = ["Fecha", "Precipitacion"]
+    df_pluv_raw = pd.read_excel(archivo_excel, sheet_name="Pluviometria", skiprows=127,
+                                usecols="C:D", header=None, names=["Fecha", "Precipitacion"], parse_dates=[0])
+    df_pluv_raw = df_pluv_raw.dropna(subset=["Fecha"])
     df_pluv_raw["Año"] = df_pluv_raw["Fecha"].dt.year
     df_pluv_raw["Mes"] = df_pluv_raw["Fecha"].dt.month
 
-    # Carga datos históricos
-    df_hist_raw = pd.read_excel(
-        archivo_excel, 
-        sheet_name="Datos Historicos", 
-        skiprows=195, 
-        usecols="C:G",
-        parse_dates=["Fecha"]
-    )
-    df_hist_raw.columns = [
-        "Fecha", 
-        "Generación Bornes (kWh)", 
-        "Generacion Ref (kWh)", 
-        "Potencia Media (MW)", 
-        "Facturacion (USD$)"
-    ]
-    
-    # Conversión explícita a numérico y limpieza
-    df_hist_raw["Generación Bornes (kWh)"] = pd.to_numeric(df_hist_raw["Generación Bornes (kWh)"], errors='coerce').fillna(0)
-    df_hist_raw["Facturacion (USD$)"] = pd.to_numeric(df_hist_raw["Facturacion (USD$)"], errors='coerce').fillna(0)
-    
+    df_hist_raw = pd.read_excel(archivo_excel, sheet_name="Datos Historicos", skiprows=195,
+                                usecols="C:G", header=None,
+                                names=["Fecha", "Generación Bornes (kWh)", "Generacion Ref (kWh)", "Potencia Media (MW)", "Facturacion (USD$)"],
+                                parse_dates=[0])
     df_hist_raw = df_hist_raw.dropna(subset=["Fecha"])
     df_hist_raw["Año"] = df_hist_raw["Fecha"].dt.year
     df_hist_raw["Mes"] = df_hist_raw["Fecha"].dt.month
 
-    # Verificación de datos cargados
-    st.write("Datos de 2025 cargados correctamente")
-    st.write("Muestra de datos:", df_hist_raw[df_hist_raw["Año"] == 2025].head())
+    st.write("✅ Años disponibles en hoja Pluviometria:", df_pluv_raw["Año"].unique())
+    st.write("✅ Años disponibles en hoja Datos Historicos:", df_hist_raw["Año"].unique())
+
+    if 2025 not in df_pluv_raw["Año"].values:
+        st.warning("⚠️ No hay datos del año 2025 en la hoja 'Pluviometria'")
+    if 2025 not in df_hist_raw["Año"].values:
+        st.warning("⚠️ No hay datos del año 2025 en la hoja 'Datos Historicos'")
 
 except Exception as e:
-    st.error(f"Error al cargar los datos: {str(e)}")
+    st.error(f"Error al cargar los datos: {e}")
     st.stop()
 
-# === PROCESAMIENTO DE DATOS ===
-# Filtrado por años
-df_2025 = df_pluv_raw[df_pluv_raw["Año"] == 2025].copy()
-df_2024 = df_pluv_raw[df_pluv_raw["Año"] == 2024].copy()
-df_5y = df_pluv_raw[df_pluv_raw["Año"].between(2020, 2024)].copy()
-df_5y_avg = df_5y.groupby("Mes")["Precipitacion"].mean().reset_index()
+# === FILTROS ===
+pluv_2025 = df_pluv_raw[df_pluv_raw["Año"] == 2025]
+pluv_2024 = df_pluv_raw[df_pluv_raw["Año"] == 2024]
+pluv_5y = df_pluv_raw[df_pluv_raw["Año"].between(2020, 2024)]
+pluv_5y_avg = pluv_5y.groupby("Mes")["Precipitacion"].mean().reindex(range(1,13), fill_value=0)
 
-dfh_2025 = df_hist_raw[df_hist_raw["Año"] == 2025].copy()
-dfh_2024 = df_hist_raw[df_hist_raw["Año"] == 2024].copy()
-dfh_5y = df_hist_raw[df_hist_raw["Año"].between(2020, 2024)].copy()
+dfh_2025 = df_hist_raw[df_hist_raw["Año"] == 2025]
+dfh_2024 = df_hist_raw[df_hist_raw["Año"] == 2024]
+dfh_5y = df_hist_raw[df_hist_raw["Año"].between(2020, 2024)]
 
-# === FUNCIÓN ROBUSTA PARA OBTENER VALORES ===
-def get_kpi_values(df, month, cols):
-    """Obtiene valores mensuales y acumulados para múltiples columnas"""
-    results = {}
-    for col in cols:
-        try:
-            # Datos mensuales
-            monthly_data = df[df["Mes"] == month]
-            monthly = monthly_data[col].sum()
-            
-            # Datos acumulados
-            ytd_data = df[df["Mes"] <= month]
-            ytd = ytd_data[col].sum()
-            
-            results[col] = {
-                "mensual": monthly,
-                "acumulado": ytd,
-                "existe_datos": not monthly_data.empty
-            }
-            
-        except Exception as e:
-            st.error(f"Error en {col}: {str(e)}")
-            results[col] = {"mensual": 0, "acumulado": 0, "existe_datos": False}
-    return results
+# === FUNCIONES AUXILIARES ===
+def get_monthly(df, col, month):
+    return df[df["Mes"] == month][col].sum()
 
-# === CÁLCULO DE KPIs ===
-# Precipitación (se mantiene igual)
-prec_2025 = df_2025[df_2025["Mes"] == mes_num]["Precipitacion"].sum()
-prec_2024 = df_2024[df_2024["Mes"] == mes_num]["Precipitacion"].sum()
-prec_5y = df_5y_avg[df_5y_avg["Mes"] == mes_num]["Precipitacion"].values[0] if mes_num in df_5y_avg["Mes"].values else 0
+def get_accumulated(df, col, month):
+    return df[df["Mes"] <= month][col].sum()
 
-prec_acum_2025 = df_2025[df_2025["Mes"] <= mes_num]["Precipitacion"].sum()
-prec_acum_2024 = df_2024[df_2024["Mes"] <= mes_num]["Precipitacion"].sum()
+# === CÁLCULOS ===
+prec_2025_mes = get_monthly(pluv_2025, "Precipitacion", mes_num)
+prec_2024_mes = get_monthly(pluv_2024, "Precipitacion", mes_num)
+prec_5y_mes = pluv_5y_avg.loc[mes_num] if mes_num in pluv_5y_avg.index else 0
+prec_2025_acum = get_accumulated(pluv_2025, "Precipitacion", mes_num)
+prec_2024_acum = get_accumulated(pluv_2024, "Precipitacion", mes_num)
 
-# Generación y Ventas - Versión corregida
-kpi_2025 = get_kpi_values(dfh_2025, mes_num, ["Generación Bornes (kWh)", "Facturacion (USD$)"])
-kpi_2024 = get_kpi_values(dfh_2024, mes_num, ["Generación Bornes (kWh)", "Facturacion (USD$)"])
+gen_2025_mes = get_monthly(dfh_2025, "Generación Bornes (kWh)", mes_num)
+gen_2024_mes = get_monthly(dfh_2024, "Generación Bornes (kWh)", mes_num)
+gen_2025_acum = get_accumulated(dfh_2025, "Generación Bornes (kWh)", mes_num)
+gen_2024_acum = get_accumulated(dfh_2024, "Generación Bornes (kWh)", mes_num)
 
-# Extracción de valores
-gen_2025 = kpi_2025["Generación Bornes (kWh)"]["mensual"]
-gen_2024 = kpi_2024["Generación Bornes (kWh)"]["mensual"]
-gen_acum_2025 = kpi_2025["Generación Bornes (kWh)"]["acumulado"]
-gen_acum_2024 = kpi_2024["Generación Bornes (kWh)"]["acumulado"]
-
-venta_2025 = kpi_2025["Facturacion (USD$)"]["mensual"]
-venta_2024 = kpi_2024["Facturacion (USD$)"]["mensual"]
-venta_acum_2025 = kpi_2025["Facturacion (USD$)"]["acumulado"]
-venta_acum_2024 = kpi_2024["Facturacion (USD$)"]["acumulado"]
-
-# Verificación de datos
-if not kpi_2025["Generación Bornes (kWh)"]["existe_datos"]:
-    st.warning(f"No hay datos de generación para {mes_seleccionado} 2025")
-if not kpi_2025["Facturacion (USD$)"]["existe_datos"]:
-    st.warning(f"No hay datos de ventas para {mes_seleccionado} 2025")
+venta_2025_mes = get_monthly(dfh_2025, "Facturacion (USD$)", mes_num)
+venta_2024_mes = get_monthly(dfh_2024, "Facturacion (USD$)", mes_num)
+venta_2025_acum = get_accumulated(dfh_2025, "Facturacion (USD$)", mes_num)
+venta_2024_acum = get_accumulated(dfh_2024, "Facturacion (USD$)", mes_num)
 
 # === VISUALIZACIÓN DE KPIs ===
-st.markdown(f"## 📊 Indicadores de {mes_seleccionado}")
-
 def display_metric(col, title, value_2025, value_2024, unit):
-    """Muestra una métrica con estilo mejorado"""
-    col.markdown(
-        f"""
-        <div style='padding:15px; border-radius:10px; background-color:#f8f9fa; margin-bottom:20px;'>
-            <div style='font-size:24px; font-weight:bold; color:#333333; margin-bottom:8px; font-family:Arial;'>
-                {title}
-            </div>
-            <div style='font-size:42px; font-weight:bold; color:#2c3e50; margin-bottom:8px; font-family:Arial;'>
-                {value_2025:,.1f} {unit}
-            </div>
-            {calcular_delta(value_2025, value_2024, unit)}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    col.markdown(f"<div style='font-size:24px; margin-bottom:8px; font-weight:bold;'>{title}</div>", unsafe_allow_html=True)
+    col.markdown(f"<div style='font-size:42px; font-weight:bold; margin-bottom:8px;'>{value_2025:,.1f} {unit}</div>", unsafe_allow_html=True)
+    col.markdown(calcular_delta(value_2025, value_2024, unit), unsafe_allow_html=True)
+
+st.markdown(f"## 📊 Indicadores de {mes_seleccionado}")
+col1, col2, col3 = st.columns(3)
+display_metric(col1, "Precipitaciones Mensuales 2025", prec_2025_mes, prec_2024_mes, "mm")
+display_metric(col2, "Generación Mensual 2025", gen_2025_mes, gen_2024_mes, "kWh")
+display_metric(col3, "Ventas Mensuales 2025", venta_2025_mes, venta_2024_mes, "USD")
+
+col4, col5, col6 = st.columns(3)
+display_metric(col4, "Precipitaciones Acumuladas 2025", prec_2025_acum, prec_2024_acum, "mm")
+display_metric(col5, "Generación Acumulada 2025", gen_2025_acum, gen_2024_acum, "kWh")
+display_metric(col6, "Ventas Acumuladas 2025", venta_2025_acum, venta_2024_acum, "USD")
+
 
 # Métricas mensuales
 col1, col2, col3 = st.columns(3)
