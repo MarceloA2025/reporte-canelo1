@@ -1,214 +1,262 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-from datetime import datetime
-import warnings
-warnings.filterwarnings('ignore')
+from pathlib import Path
+from cycler import cycler
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
-# =============================================
-# 1. CONFIGURACIÓN (DISEÑO CORPORATIVO 2025)
-# =============================================
+# === CONFIGURACIÓN DE PÁGINA ===
 st.set_page_config(
-    layout="centered",
-    page_title="Reporte 2025",
-    page_icon="⚡"
+    page_title="Reporte Operativo y Financiero",
+    layout="wide",
+    page_icon=None  # Evita problemas con emojis y MemoryError
 )
 
-# Paleta de colores para energía (azul eléctrico/verde)
-COLORS = {
-    'primary': '#0066CC',  # Azul corporativo
-    'secondary': '#00CC66',  # Verde energético
-    'background': '#F5F9FF',
-    'alert': '#FF6666'
-}
+# === PALETA DE COLORES Y ESTILOS ===
+PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
+plt.style.use('ggplot')
+plt.rcParams.update({
+    'axes.prop_cycle': cycler(color=PALETTE),
+    'font.family': 'Arial',
+    'axes.titleweight': 'bold',
+    'font.size': 12,
+    'grid.color': '#CCCCCC',
+    'grid.linestyle': '--',
+    'grid.alpha': 0.6
+})
 
-# CSS para centrado y estilo
-st.markdown(f"""
-    <style>
-        .main {{
-            max-width: 1200px;
-            margin: auto;
-            padding: 2rem;
-            background: {COLORS['background']};
-        }}
-        .header {{
-            color: {COLORS['primary']};
-            text-align: center;
-            border-bottom: 2px solid {COLORS['secondary']};
-            padding-bottom: 1rem;
-        }}
-        .kpi-card {{
-            background: white;
-            border-radius: 10px;
-            padding: 1.5rem;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }}
-    </style>
-""", unsafe_allow_html=True)
+# === FUNCIONES AUXILIARES ===
+def calcular_delta(actual, anterior):
+    if anterior and abs(anterior) > 1e-9:
+        delta = actual - anterior
+        pct = (delta / anterior) * 100
+        color = PALETTE[2] if delta >= 0 else PALETTE[3]
+        return f"<span style='color:{color};'>{delta:+,.0f} ({pct:+.1f}%)</span>"
+    return "N/A"
 
-# =============================================
-# 2. DATOS 2025 (SIMULACIÓN AUDITADA)
-# =============================================
-@st.cache_data
-def load_2025_data():
-    np.random.seed(2025)  # Para reproducibilidad
-    dates = pd.date_range(start="2025-01-01", end="2025-12-31", freq='M')
-    
-    data = {
-        "Fecha": dates,
-        "Generación (MWh)": np.random.normal(8500, 500, len(dates)),  # Meta 2025: 8.5GWh/mes
-        "Ventas (MUSD)": np.random.lognormal(mean=1.2, sigma=0.15, size=len(dates)),
-        "Precipitaciones (mm)": np.random.weibull(a=1.5, size=len(dates)) * 120,
-        "Costos Operativos (MUSD)": np.random.normal(3.8, 0.3, len(dates)),
-        "Activos (MUSD)": np.cumsum(np.random.uniform(0.5, 1.0, len(dates))) + 150
+def format_currency(x):
+    return f"${x:,.0f}"
+
+def format_kwh(x):
+    return f"{x:,.0f} kWh"
+
+# === CARGA DE DATOS ===
+EXCEL_PATH = Path(r"C:\One Drive Hotmail\OneDrive\Documentos\Python VSCode\REPORTE WEB\HEC mensuales 2025.xlsx")
+
+@st.cache_data(ttl=3600)
+def cargar_datos(path):
+    df_pluv = pd.read_excel(path, sheet_name="Pluviometria", skiprows=127, usecols="C:D")
+    df_pluv.columns = ["Fecha", "Precipitacion"]
+    df_pluv["Fecha"] = pd.to_datetime(df_pluv["Fecha"], errors='coerce')
+    df_pluv["Año"] = df_pluv["Fecha"].dt.year
+    df_pluv["Mes"] = df_pluv["Fecha"].dt.month
+
+    df_hist = pd.read_excel(path, sheet_name="Datos Historicos", skiprows=195, usecols="C:G")
+    df_hist.columns = ["Fecha", "Generacion", "Generacion_Ref", "Potencia", "Ventas"]
+    df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors='coerce')
+    df_hist.dropna(subset=["Fecha"], inplace=True)
+    df_hist["Año"] = df_hist["Fecha"].dt.year
+    df_hist["Mes"] = df_hist["Fecha"].dt.month
+
+    df_mayor = pd.read_excel(path, sheet_name="Mayor", skiprows=4)
+    df_mayor = df_mayor.loc[:, ~df_mayor.columns.str.contains("^Unnamed")]
+    df_mayor.columns = [c.strip().upper() for c in df_mayor.columns]
+    if "FECHA" in df_mayor.columns:
+        df_mayor["FECHA"] = pd.to_datetime(df_mayor["FECHA"], errors="coerce")
+        df_mayor["AÑO"] = df_mayor["FECHA"].dt.year
+        df_mayor["MES"] = df_mayor["FECHA"].dt.month
+    else:
+        df_mayor["AÑO"] = pd.NA
+        df_mayor["MES"] = pd.NA
+
+    return df_pluv, df_hist, df_mayor
+
+# === ANÁLISIS FINANCIERO ===
+def procesar_estado_resultado(df_mayor, año, mes):
+    df_periodo = df_mayor[(df_mayor["AÑO"] == año) & (df_mayor["MES"] == mes)]
+    df_periodo["CLASE"] = df_periodo["CUENTA"].astype(str).str[0].astype(int)
+    agregado = df_periodo.groupby("CLASE").agg({
+        "DEBE": "sum",
+        "HABER": "sum",
+        "SALDO": "sum"
+    }).reset_index()
+    clase_nombre = {
+        1: "Activos",
+        2: "Pasivos",
+        3: "Costos",
+        4: "Ingresos",
+        5: "Gastos",
+        6: "Patrimonio"
     }
-    
-    df = pd.DataFrame(data)
-    df['Margen Operativo (%)'] = ((df['Ventas (MUSD)'] - df['Costos Operativos (MUSD)']) / df['Ventas (MUSD)']) * 100
-    return df
+    agregado["Cuenta"] = agregado["CLASE"].map(clase_nombre)
+    return agregado[["Cuenta", "DEBE", "HABER", "SALDO"]]
 
-df_2025 = load_2025_data()
-df_2025['Fecha'] = pd.to_datetime(df_2025['Fecha'])
+def calcular_margenes(ingresos, costos):
+    utilidad = ingresos - costos
+    margen = (utilidad / ingresos) * 100 if ingresos else 0
+    return utilidad, margen
 
-# =============================================
-# 3. PRESENTACIÓN DEL REPORTE 2025
-# =============================================
-st.markdown("""
-    <div class="header">
-        <h1>REPORTE ANUAL 2025</h1>
-        <h3>Compañía Energética Global S.A.</h3>
-    </div>
-""", unsafe_allow_html=True)
+# === GRÁFICOS ===
+def crear_grafico_tendencias(df_hist, año_actual, mes_actual, kpi):
+    meses_str = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    df_mes_actual = df_hist[(df_hist["Año"] == año_actual)]
+    df_hist_anteriores = df_hist[(df_hist["Año"] < año_actual)]
 
-# ----------------------------
-# Sección 1: KPIs Críticos 2025
-# ----------------------------
-st.markdown("## 🔍 Indicadores Clave de Desempeño")
-cols = st.columns(3)
+    # Tendencia mensual barras
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=meses_str,
+        y=[df_mes_actual[df_mes_actual["Mes"] == i][kpi].sum() for i in range(1,13)],
+        name=f"{año_actual}",
+        marker_color=PALETTE[0]
+    ))
 
-with cols[0]:
-    st.markdown(f"""
-        <div class="kpi-card">
-            <h3>Generación Anual</h3>
-            <p style="font-size: 2rem; color: {COLORS['primary']};">{df_2025['Generación (MWh)'].sum()/1000:.1f} GWh</p>
-            <p>Meta: 100 GWh | Cumplimiento: <b>{df_2025['Generación (MWh)'].sum()/100000*100:.1f}%</b></p>
-        </div>
-    """, unsafe_allow_html=True)
+    # Tendencia anual líneas
+    años = sorted(df_hist_anteriores["Año"].unique())
+    valores = [df_hist_anteriores[(df_hist_anteriores["Año"] == a) & (df_hist_anteriores["Mes"] == mes_actual)][kpi].sum() for a in años]
+    fig.add_trace(go.Scatter(
+        x=años,
+        y=valores,
+        mode='lines+markers',
+        name="Histórico",
+        line=dict(color=PALETTE[1], width=3)
+    ))
 
-with cols[1]:
-    st.markdown(f"""
-        <div class="kpi-card">
-            <h3>Ventas Totales</h3>
-            <p style="font-size: 2rem; color: {COLORS['primary']};">${df_2025['Ventas (MUSD)'].sum():.1f} MUSD</p>
-            <p>vs Presupuesto: <b>+{(df_2025['Ventas (MUSD)'].sum()/120-1)*100:.1f}%</b></p>
-        </div>
-    """, unsafe_allow_html=True)
+    fig.update_layout(
+        title=f"Tendencias de {kpi}",
+        xaxis_title="Mes / Año",
+        yaxis_title=kpi,
+        barmode='group',
+        template="plotly_white",
+        height=400,
+        legend=dict(y=0.99, x=0.01)
+    )
+    return fig
 
-with cols[2]:
-    st.markdown(f"""
-        <div class="kpi-card">
-            <h3>Precipitaciones</h3>
-            <p style="font-size: 2rem; color: {COLORS['secondary']};">{df_2025['Precipitaciones (mm)'].mean():.0f} mm</p>
-            <p>Más lluvioso: <b>{df_2025.loc[df_2025['Precipitaciones (mm)'].idxmax(), 'Fecha'].strftime('%B')}</b></p>
-        </div>
-    """, unsafe_allow_html=True)
+def grafico_generacion_anual(df_hist):
+    df_generacion_anual = df_hist.groupby("Año")["Generacion"].sum().reset_index()
+    if 2025 not in df_generacion_anual["Año"].values:
+        df_generacion_anual = pd.concat([
+            df_generacion_anual,
+            pd.DataFrame({"Año": [2025], "Generacion": [0]})
+        ], ignore_index=True)
+    df_generacion_anual = df_generacion_anual.sort_values("Año")
 
-# ----------------------------
-# Sección 2: Tendencias Mensuales 2025
-# ----------------------------
-st.markdown("## 📊 Tendencias Operativas 2025")
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df_generacion_anual["Año"],
+        y=df_generacion_anual["Generacion"],
+        mode='lines+markers',
+        line=dict(color=PALETTE[0], width=3),
+        name="Generación Anual (kWh)"
+    ))
+    fig.update_layout(
+        title="Generación Anual de Energía",
+        xaxis_title="Año",
+        yaxis_title="Generación (kWh)",
+        template="plotly_white",
+        height=400
+    )
+    return fig
 
-# Gráfico 1: Generación vs Precipitaciones
-fig1 = px.line(
-    df_2025,
-    x='Fecha',
-    y=['Generación (MWh)', 'Precipitaciones (mm)'],
-    title="Generación Energética vs Precipitaciones (2025)",
-    color_discrete_sequence=[COLORS['primary'], COLORS['secondary']],
-    labels={"value": "Magnitud", "variable": "Indicador"}
-)
-fig1.update_layout(
-    yaxis2=dict(title="Precipitaciones (mm)", overlaying='y', side='right'),
-    yaxis=dict(title="Generación (MWh)")
-)
-st.plotly_chart(fig1, use_container_width=True)
+# === RECOMENDACIONES ===
+def generar_recomendaciones(analisis):
+    recs = []
+    margen = analisis['Financiero']['margen_operativo']
+    if margen < 15:
+        recs.append("🔧 Optimizar costos para mejorar márgenes operativos.")
+    elif margen > 30:
+        recs.append("📈 Considerar reinversión estratégica en infraestructura.")
+    return recs
 
-# Gráfico 2: Ventas y Margen
-fig2 = px.bar(
-    df_2025,
-    x='Fecha',
-    y='Ventas (MUSD)',
-    title="Ventas Mensuales 2025",
-    color='Margen Operativo (%)',
-    color_continuous_scale=[COLORS['secondary'], COLORS['primary']],
-    range_color=(15, 35)
-)
-st.plotly_chart(fig2, use_container_width=True)
+# === MAIN ===
+def main():
+    # Carga datos
+    df_pluv, df_hist, df_mayor = cargar_datos(EXCEL_PATH)
 
-# ----------------------------
-# Sección 3: Análisis Financiero
-# ----------------------------
-st.markdown("## 💰 Estado de Resultados 2025")
+    # Sidebar - selección
+    st.sidebar.title("Parámetros del Reporte")
+    empresa = st.sidebar.text_input("Nombre de la Empresa", "Hidroeléctrica El Canelo")
+    meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+    mes = st.sidebar.selectbox("📅 Seleccione Mes", meses, index=3)
+    m = meses.index(mes) + 1
+    año_actual = 2025
 
-# Tabla resumen
-financial_summary = df_2025[['Fecha', 'Ventas (MUSD)', 'Costos Operativos (MUSD)', 'Margen Operativo (%)']].copy()
-financial_summary['Año'] = financial_summary['Fecha'].dt.strftime('%Y')
-annual_summary = financial_summary.groupby('Año').agg({
-    'Ventas (MUSD)': 'sum',
-    'Costos Operativos (MUSD)': 'sum'
-}).reset_index()
-annual_summary['Margen (%)'] = (annual_summary['Ventas (MUSD)'] - annual_summary['Costos Operativos (MUSD)']) / annual_summary['Ventas (MUSD)'] * 100
+    # Título dinámico
+    st.title(f"Reporte Operativo y Financiero - {empresa}")
+    st.header(f"Período: {mes} {año_actual}")
 
-st.dataframe(
-    annual_summary.style.format({
-        'Ventas (MUSD)': '${:,.1f}',
-        'Costos Operativos (MUSD)': '${:,.1f}',
-        'Margen (%)': '{:.1f}%'
-    }).applymap(
-        lambda x: f"color: {COLORS['primary']}" if x > 0 else f"color: {COLORS['alert']}",
-        subset=['Margen (%)']
-    ),
-    use_container_width=True
-)
+    # Filtrar datos 2025 hasta mes seleccionado
+    df25_filtrado = df_hist[(df_hist["Año"] == año_actual) & (df_hist["Mes"] <= m)]
 
-# ----------------------------
-# Sección 4: Recomendaciones Estratégicas
-# ----------------------------
-st.markdown("## 🎯 Acciones Recomendadas para 2026")
+    # Datos para años anteriores y promedio 5 años
+    df24 = df_hist[df_hist["Año"] == año_actual - 1]
+    df5y = df_hist[df_hist["Año"].between(año_actual-5, año_actual-1)]
 
-if annual_summary['Margen (%)'].iloc[0] < 25:
-    st.error("""
-        **🔴 Prioridad Crítica:** Optimización de Costos  
-        - Renegociar contratos de suministro (meta: reducir 15% costos logísticos)  
-        - Automatizar mantenimiento predictivo en plantas hidroeléctricas  
-    """)
-else:
-    st.success("""
-        **🟢 Oportunidad de Inversión:**  
-        - Expandir capacidad en un 20% con energía solar fotovoltaica  
-        - Asignar USD 8M a I+D para almacenamiento en baterías  
-    """)
+    # KPIs operativos
+    gen25 = df25_filtrado["Generacion"].sum()
+    gen24 = df24[df24["Mes"] == m]["Generacion"].sum()
+    genavg = df5y.groupby("Mes")["Generacion"].mean().reindex(range(1,13), fill_value=0).loc[m]
 
-if df_2025['Precipitaciones (mm)'].mean() < 100:
-    st.warning("""
-        **⚠️ Alerta Climática:**  
-        - Implementar protocolos de sequía en centrales hidroeléctricas  
-        - Diversificar mix energético (meta: reducir dependencia hídrica a <40%)  
-    """)
+    vent25 = df25_filtrado["Ventas"].sum()
+    vent24 = df24[df24["Mes"] == m]["Ventas"].sum()
+    ventavg = df5y.groupby("Mes")["Ventas"].mean().reindex(range(1,13), fill_value=0).loc[m]
 
-# =============================================
-# 4. CONTROL DE CALIDAD (AUDITORÍA)
-# =============================================
-st.sidebar.markdown("""
-    **🔍 Auditoría 2025**  
-    ✔️ Datos validados vs SAP ERP  
-    ✔️ Cumple con IFRS 17  
-    ✔️ Reporte generado el: {}  
-""".format(datetime.now().strftime('%d/%m/%Y %H:%M')))
+    prec25 = df_pluv[(df_pluv["Año"] == año_actual) & (df_pluv["Mes"] <= m)]["Precipitacion"].sum()
+    prec24 = df_pluv[(df_pluv["Año"] == año_actual - 1) & (df_pluv["Mes"] == m)]["Precipitacion"].sum()
+    precavg = df_pluv[df_pluv["Año"].between(año_actual-5, año_actual-1)].groupby("Mes")["Precipitacion"].mean().reindex(range(1,13), fill_value=0).loc[m]
 
-# Validación de rangos esperados
-assert df_2025['Generación (MWh)'].between(7000, 10000).all(), "Error: Datos de generación fuera de rango"
-assert df_2025['Ventas (MUSD)'].between(0.8, 2.0).all(), "Error: Datos de ventas inconsistentes"
+    col1, col2, col3 = st.columns(3)
+    col1.markdown(f"**Generación**\n\n{format_kwh(gen25)}\n\nΔ vs {año_actual-1}: {calcular_delta(gen25, gen24)}\n\nΔ vs Promedio 5A: {calcular_delta(gen25, genavg)}", unsafe_allow_html=True)
+    col2.markdown(f"**Ventas**\n\n{format_currency(vent25)}\n\nΔ vs {año_actual-1}: {calcular_delta(vent25, vent24)}\n\nΔ vs Promedio 5A: {calcular_delta(vent25, ventavg)}", unsafe_allow_html=True)
+    col3.markdown(f"**Precipitaciones**\n\n{prec25:,.1f} mm\n\nΔ vs {año_actual-1}: {calcular_delta(prec25, prec24)}\n\nΔ vs Promedio 5A: {calcular_delta(prec25, precavg)}", unsafe_allow_html=True)
+
+    # Gráficos tendencias mensuales y anuales
+    st.subheader("Tendencias Operativas")
+    fig_gen = crear_grafico_tendencias(df_hist, año_actual, m, "Generacion")
+    st.plotly_chart(fig_gen, use_container_width=True)
+
+    fig_vent = crear_grafico_tendencias(df_hist, año_actual, m, "Ventas")
+    st.plotly_chart(fig_vent, use_container_width=True)
+
+    # Gráfico anual generación con 2025
+    st.subheader("Generación Anual de Energía")
+    fig_anual = grafico_generacion_anual(df_hist)
+    st.plotly_chart(fig_anual, use_container_width=True)
+
+    # Análisis financiero
+    st.subheader("Análisis Financiero Detallado")
+    estado_resultado = procesar_estado_resultado(df_mayor, año_actual, m)
+
+    ingresos = estado_resultado[estado_resultado["Cuenta"] == "Ingresos"]["HABER"].sum()
+    costos = estado_resultado[estado_resultado["Cuenta"] == "Costos"]["DEBE"].sum()
+    utilidad, margen = calcular_margenes(ingresos, costos)
+
+    estado_display = estado_resultado.copy()
+    estado_display["DEBE"] = estado_display["DEBE"].apply(format_currency)
+    estado_display["HABER"] = estado_display["HABER"].apply(format_currency)
+    estado_display["SALDO"] = estado_display["SALDO"].apply(format_currency)
+    st.table(estado_display)
+
+    colf1, colf2, colf3 = st.columns(3)
+    colf1.metric("Ingresos Totales", format_currency(ingresos))
+    colf2.metric("Costos Totales", format_currency(costos))
+    colf3.metric("Utilidad Operativa", format_currency(utilidad), f"{margen:.1f}%")
+
+    # Recomendaciones
+    analisis = {
+        'Financiero': {'margen_operativo': margen}
+    }
+    st.subheader("Recomendaciones Estratégicas")
+    recs = generar_recomendaciones(analisis)
+    if recs:
+        for r in recs:
+            st.markdown(f"- {r}")
+    else:
+        st.info("✅ El desempeño operativo y financiero está dentro de parámetros esperados.")
+
+    st.caption(f"Reporte generado el {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | Derechos reservados © 2025")
+
+if __name__ == "__main__":
+    main()
