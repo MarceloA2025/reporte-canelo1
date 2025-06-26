@@ -258,5 +258,6 @@ def main():
 
     st.caption(f"Reporte generado el {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | Derechos reservados © 2025")
 
+
 if __name__ == "__main__":
     main()
