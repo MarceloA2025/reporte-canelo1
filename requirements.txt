@@ -6,3 +6,4 @@ XlsxWriter
 Pillow
 scipy
 plotly
+cycler
