@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 st.set_page_config(
     page_title="Reporte Operativo y Financiero",
     layout="wide",
-    page_icon=None  # Evita problemas con emojis y MemoryError
+    page_icon=None
 )
 
 # === PALETA DE COLORES Y ESTILOS ===
@@ -42,7 +42,13 @@ def format_kwh(x):
     return f"{x:,.0f} kWh"
 
 # === CARGA DE DATOS ===
-EXCEL_PATH = Path(r"C:\One Drive Hotmail\OneDrive\Documentos\Python VSCode\REPORTE WEB\HEC mensuales 2025.xlsx")
+# Usa una ruta relativa, así funcionará en cualquier entorno
+EXCEL_PATH = Path("HEC mensuales 2025.xlsx")  # O usa "data/HEC mensuales 2025.xlsx" si está en una subcarpeta
+
+# Verifica que el archivo exista antes de continuar
+if not EXCEL_PATH.exists():
+    st.error(f"Archivo no encontrado: {EXCEL_PATH}. Asegúrate de que esté en la carpeta del proyecto y en el repositorio de GitHub.")
+    st.stop()
 
 @st.cache_data(ttl=3600)
 def cargar_datos(path):
@@ -189,8 +195,6 @@ def main():
 
     # Filtrar datos 2025 hasta mes seleccionado
     df25_filtrado = df_hist[(df_hist["Año"] == año_actual) & (df_hist["Mes"] <= m)]
-
-    # Datos para años anteriores y promedio 5 años
     df24 = df_hist[df_hist["Año"] == año_actual - 1]
     df5y = df_hist[df_hist["Año"].between(año_actual-5, año_actual-1)]
 
