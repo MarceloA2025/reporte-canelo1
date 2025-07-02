@@ -29,8 +29,9 @@ plt.rcParams.update({
 # === PARÁMETROS DE ESTILO ===
 
 ## → KPIs
-KPI_FONT_SIZE             = 25        # tamaño de la letra de los valores principales
-KPI_DELTA_FONT_SIZE       = 18        # tamaño de la letra de los deltas porcentuales
+KPI_LABEL_FONT_SIZE       = 14        # tamaño de la letra de la etiqueta (p.ej. "Generación")
+KPI_VALUE_FONT_SIZE       = 24        # tamaño de la letra del valor principal (p.ej. "1,234 MWh")
+KPI_DELTA_FONT_SIZE       = 16        # tamaño de la letra de los deltas porcentuales
 KPI_COLOR_POSITIVE        = PALETTE[2]  # color cuando el delta es positivo
 KPI_COLOR_NEGATIVE        = PALETTE[3]  # color cuando el delta es negativo
 
@@ -40,7 +41,7 @@ BAR_COLOR_CURRENT_YEAR    = PALETTE[0]
 LINE_COLOR_HISTORICO      = PALETTE[1]
 LEGEND_FONT_SIZE          = 12        # tamaño de fuente de las leyendas
 AXIS_TITLE_FONT_SIZE      = 14        # tamaño de fuente de títulos de ejes
-AXIS_TICK_FONT_SIZE       = 12        # tamaño de fuente de ticks
+AXIS_TICK_FONT_SIZE       = 12        # tamaño de fuente de ticks (números en ejes)
 
 ## → Matplotlib (si se usa)
 MATPLOT_FONT_FAMILY       = "Arial"
@@ -58,8 +59,8 @@ def calcular_delta(actual, anterior):
         pct   = (delta / anterior) * 100
         color = KPI_COLOR_POSITIVE if delta >= 0 else KPI_COLOR_NEGATIVE
         return (
-            f"<span style='font-size:{KPI_DELTA_FONT_SIZE}px; "
-            f"color:{color};'>{delta:+,.0f} ({pct:+.1f}%)</span>"
+            f"<span style='font-size:{KPI_DELTA_FONT_SIZE}px; color:{color};'>"
+            f"{delta:+,.0f} ({pct:+.1f}%)</span>"
         )
     return "N/A"
 
@@ -97,8 +98,8 @@ def cargar_datos(path):
     df_mayor.columns = [c.strip().upper() for c in df_mayor.columns]
     if "FECHA" in df_mayor.columns:
         df_mayor["FECHA"] = pd.to_datetime(df_mayor["FECHA"], errors="coerce")
-        df_mayor["AÑO"] = df_mayor["FECHA"].dt.year
-        df_mayor["MES"] = df_mayor["FECHA"].dt.month
+        df_mayor["AÑO"]  = df_mayor["FECHA"].dt.year
+        df_mayor["MES"]  = df_mayor["FECHA"].dt.month
     else:
         df_mayor["AÑO"] = pd.NA
         df_mayor["MES"] = pd.NA
@@ -133,7 +134,7 @@ def calcular_margenes(ingresos, costos):
 # === GRÁFICOS ===
 def crear_grafico_tendencias(df_hist, año_actual, mes_actual, kpi):
     meses_str = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-    df_mes_actual    = df_hist[df_hist["Año"] == año_actual]
+    df_mes_actual      = df_hist[df_hist["Año"] == año_actual]
     df_hist_anteriores = df_hist[df_hist["Año"] < año_actual]
 
     fig = go.Figure()
@@ -144,8 +145,8 @@ def crear_grafico_tendencias(df_hist, año_actual, mes_actual, kpi):
         name=f"{año_actual}",
         marker_color=BAR_COLOR_CURRENT_YEAR
     ))
-    # Línea histórico para el mes seleccionado
-    años   = sorted(df_hist_anteriores["Año"].unique())
+    # Línea histórico
+    años    = sorted(df_hist_anteriores["Año"].unique())
     valores = [df_hist_anteriores[(df_hist_anteriores["Año"] == a) & (df_hist_anteriores["Mes"] == mes_actual)][kpi].sum() for a in años]
     fig.add_trace(go.Scatter(
         x=años,
@@ -179,18 +180,15 @@ def crear_grafico_tendencias(df_hist, año_actual, mes_actual, kpi):
     return fig
 
 def grafico_generacion_anual(df_hist):
-    df_generacion_anual = df_hist.groupby("Año")["Generacion"].sum().reset_index()
-    if 2025 not in df_generacion_anual["Año"].values:
-        df_generacion_anual = pd.concat([
-            df_generacion_anual,
-            pd.DataFrame({"Año":[2025], "Generacion":[0]})
-        ], ignore_index=True)
-    df_generacion_anual = df_generacion_anual.sort_values("Año")
+    df_anual = df_hist.groupby("Año")["Generacion"].sum().reset_index()
+    if 2025 not in df_anual["Año"].values:
+        df_anual = pd.concat([df_anual, pd.DataFrame({"Año":[2025], "Generacion":[0]})], ignore_index=True)
+    df_anual = df_anual.sort_values("Año")
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=df_generacion_anual["Año"],
-        y=df_generacion_anual["Generacion"],
+        x=df_anual["Año"],
+        y=df_anual["Generacion"],
         mode='lines+markers',
         line=dict(color=BAR_COLOR_CURRENT_YEAR, width=3),
         name="Generación Anual (MWh)"
@@ -241,75 +239,41 @@ def main():
     gen25_mes   = df_hist[(df_hist["Año"] == año_actual) & (df_hist["Mes"] == m)]["Generacion"].sum()
     gen24_mes   = df_hist[(df_hist["Año"] == año_actual-1) & (df_hist["Mes"] == m)]["Generacion"].sum()
     genavg_mes  = df_hist[(df_hist["Año"].between(año_actual-5, año_actual-1)) & (df_hist["Mes"] == m)]["Generacion"].mean()
-
     vent25_mes  = df_hist[(df_hist["Año"] == año_actual) & (df_hist["Mes"] == m)]["Ventas"].sum()
     vent24_mes  = df_hist[(df_hist["Año"] == año_actual-1) & (df_hist["Mes"] == m)]["Ventas"].sum()
     ventavg_mes = df_hist[(df_hist["Año"].between(año_actual-5, año_actual-1)) & (df_hist["Mes"] == m)]["Ventas"].mean()
-
     prec25_mes  = df_pluv[(df_pluv["Año"] == año_actual) & (df_pluv["Mes"] == m)]["Precipitacion"].sum()
     prec24_mes  = df_pluv[(df_pluv["Año"] == año_actual-1) & (df_pluv["Mes"] == m)]["Precipitacion"].sum()
     precavg_mes = df_pluv[(df_pluv["Año"].between(año_actual-5, año_actual-1)) & (df_pluv["Mes"] == m)]["Precipitacion"].mean()
 
-    gen25_acum   = df_hist[(df_hist["Año"] == año_actual) & (df_hist["Mes"] <= m)]["Generacion"].sum()
-    gen24_acum   = df_hist[(df_hist["Año"] == año_actual-1) & (df_hist["Mes"] <= m)]["Generacion"].sum()
-    genavg_acum  = df_hist[df_hist["Año"].between(año_actual-5, año_actual-1)].groupby("Año").apply(lambda x: x[x["Mes"] <= m]["Generacion"].sum()).mean()
-
-    vent25_acum  = df_hist[(df_hist["Año"] == año_actual) & (df_hist["Mes"] <= m)]["Ventas"].sum()
-    vent24_acum  = df_hist[(df_hist["Año"] == año_actual-1) & (df_hist["Mes"] <= m)]["Ventas"].sum()
-    ventavg_acum = df_hist[df_hist["Año"].between(año_actual-5, año_actual-1)].groupby("Año").apply(lambda x: x[x["Mes"] <= m]["Ventas"].sum()).mean()
-
-    prec25_acum  = df_pluv[(df_pluv["Año"] == año_actual) & (df_pluv["Mes"] <= m)]["Precipitacion"].sum()
-    prec24_acum  = df_pluv[(df_pluv["Año"] == año_actual-1) & (df_pluv["Mes"] <= m)]["Precipitacion"].sum()
-    precavg_acum = df_pluv[df_pluv["Año"].between(año_actual-5, año_actual-1)].groupby("Año").apply(lambda x: x[x["Mes"] <= m]["Precipitacion"].sum()).mean()
-
     st.subheader("KPIs Mensuales (solo mes seleccionado)")
     col1, col2, col3 = st.columns(3)
     col1.markdown(
-        f"<div style='font-size:{KPI_FONT_SIZE}px;'>"
-        f"**Generación**<br>{format_MWh(gen25_mes)}<br>"
+        f"<div>"
+        f"<span style='font-size:{KPI_LABEL_FONT_SIZE}px; font-weight:bold;'>Generación</span><br>"
+        f"<span style='font-size:{KPI_VALUE_FONT_SIZE}px;'>{format_MWh(gen25_mes)}</span><br>"
         f"Δ vs {año_actual-1}: {calcular_delta(gen25_mes, gen24_mes)}<br>"
-        f"Δ vs Promedio 5A: {calcular_delta(gen25_mes, genavg_mes)}"
+        f"Δ vs Prom 5A: {calcular_delta(gen25_mes, genavg_mes)}"
         f"</div>", unsafe_allow_html=True
     )
     col2.markdown(
-        f"<div style='font-size:{KPI_FONT_SIZE}px;'>"
-        f"**Ventas**<br>{format_currency(vent25_mes)}<br>"
+        f"<div>"
+        f"<span style='font-size:{KPI_LABEL_FONT_SIZE}px; font-weight:bold;'>Ventas</span><br>"
+        f"<span style='font-size:{KPI_VALUE_FONT_SIZE}px;'>{format_currency(vent25_mes)}</span><br>"
         f"Δ vs {año_actual-1}: {calcular_delta(vent25_mes, vent24_mes)}<br>"
-        f"Δ vs Promedio 5A: {calcular_delta(vent25_mes, ventavg_mes)}"
+        f"Δ vs Prom 5A: {calcular_delta(vent25_mes, ventavg_mes)}"
         f"</div>", unsafe_allow_html=True
     )
     col3.markdown(
-        f"<div style='font-size:{KPI_FONT_SIZE}px;'>"
-        f"**Precipitaciones**<br>{prec25_mes:,.1f} mm<br>"
+        f"<div>"
+        f"<span style='font-size:{KPI_LABEL_FONT_SIZE}px; font-weight:bold;'>Precipitaciones</span><br>"
+        f"<span style='font-size:{KPI_VALUE_FONT_SIZE}px;'>{prec25_mes:,.1f} mm</span><br>"
         f"Δ vs {año_actual-1}: {calcular_delta(prec25_mes, prec24_mes)}<br>"
-        f"Δ vs Promedio 5A: {calcular_delta(prec25_mes, precavg_mes)}"
+        f"Δ vs Prom 5A: {calcular_delta(prec25_mes, precavg_mes)}"
         f"</div>", unsafe_allow_html=True
     )
 
-    st.subheader("KPIs Acumulados (enero a mes seleccionado)")
-    col4, col5, col6 = st.columns(3)
-    col4.markdown(
-        f"<div style='font-size:{KPI_FONT_SIZE}px;'>"
-        f"**Generación Acum.**<br>{format_MWh(gen25_acum)}<br>"
-        f"Δ vs {año_actual-1}: {calcular_delta(gen25_acum, gen24_acum)}<br>"
-        f"Δ vs Promedio 5A: {calcular_delta(gen25_acum, genavg_acum)}"
-        f"</div>", unsafe_allow_html=True
-    )
-    col5.markdown(
-        f"<div style='font-size:{KPI_FONT_SIZE}px;'>"
-        f"**Ventas Acum.**<br>{format_currency(vent25_acum)}<br>"
-        f"Δ vs {año_actual-1}: {calcular_delta(vent25_acum, vent24_acum)}<br>"
-        f"Δ vs Promedio 5A: {calcular_delta(vent25_acum, ventavg_acum)}"
-        f"</div>", unsafe_allow_html=True
-    )
-    col6.markdown(
-        f"<div style='font-size:{KPI_FONT_SIZE}px;'>"
-        f"**Precipitaciones Acum.**<br>{prec25_acum:,.1f} mm<br>"
-        f"Δ vs {año_actual-1}: {calcular_delta(prec25_acum, prec24_acum)}<br>"
-        f"Δ vs Promedio 5A: {calcular_delta(prec25_acum, precavg_acum)}"
-        f"</div>", unsafe_allow_html=True
-    )
-
+    # === Tendencias y anual ===
     st.subheader("Tendencias Operativas")
     st.plotly_chart(crear_grafico_tendencias(df_hist, año_actual, m, "Generacion"), use_container_width=True)
     st.plotly_chart(crear_grafico_tendencias(df_hist, año_actual, m, "Ventas"), use_container_width=True)
@@ -317,23 +281,25 @@ def main():
     st.subheader("Generación Anual de Energía")
     st.plotly_chart(grafico_generacion_anual(df_hist), use_container_width=True)
 
+    # === Análisis Financiero ===
     st.subheader("Análisis Financiero Detallado")
-    estado_resultado = procesar_estado_resultado(df_mayor, año_actual, m)
-    ingresos = estado_resultado[estado_resultado["Cuenta"] == "Ingresos"]["HABER"].sum()
-    costos   = estado_resultado[estado_resultado["Cuenta"] == "Costos"]["DEBE"].sum()
+    estado = procesar_estado_resultado(df_mayor, año_actual, m)
+    ingresos = estado[estado["Cuenta"] == "Ingresos"]["HABER"].sum()
+    costos   = estado[estado["Cuenta"] == "Costos"]["DEBE"].sum()
     utilidad, margen = calcular_margenes(ingresos, costos)
 
-    estado_display = estado_resultado.copy()
-    estado_display["DEBE"]  = estado_display["DEBE"].apply(format_currency)
-    estado_display["HABER"] = estado_display["HABER"].apply(format_currency)
-    estado_display["SALDO"] = estado_display["SALDO"].apply(format_currency)
-    st.table(estado_display)
+    display = estado.copy()
+    display["DEBE"]  = display["DEBE"].apply(format_currency)
+    display["HABER"] = display["HABER"].apply(format_currency)
+    display["SALDO"] = display["SALDO"].apply(format_currency)
+    st.table(display)
 
     colf1, colf2, colf3 = st.columns(3)
     colf1.metric("Ingresos Totales", format_currency(ingresos))
     colf2.metric("Costos Totales", format_currency(costos))
     colf3.metric("Utilidad Operativa", format_currency(utilidad), f"{margen:.1f}%")
 
+    # === Recomendaciones ===
     st.subheader("Recomendaciones Estratégicas")
     recs = generar_recomendaciones({'Financiero': {'margen_operativo': margen}})
     if recs:
@@ -342,7 +308,7 @@ def main():
     else:
         st.info("✅ El desempeño operativo y financiero está dentro de parámetros esperados.")
 
-    st.caption(f"Reporte generado el {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | Derechos reservados © 2025")
+    st.caption(f"Reporte generado el {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | © 2025")
 
 if __name__ == "__main__":
     main()
