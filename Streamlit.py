@@ -11,9 +11,10 @@ KPI_FONT_SIZE = 25
 KPI_DELTA_FONT_SIZE = 18
 CHART_HEIGHT = 450
 
-EXCEL_PATH = Path("HEC mensuales 2025.xlsx")
-GEN_PATH = Path(r"C:\One Drive Hotmail\OneDrive\Documentos\Python VSCode\REPORTE WEB\Generacion Central El Canelo.xlsx")
-LOGO_PATH = r"C:\One Drive Hotmail\OneDrive\Documentos\Python VSCode\REPORTE WEB\logo.jpg"
+# Rutas relativas para compatibilidad local y nube
+EXCEL_PATH = Path("data/HEC mensuales 2025.xlsx")
+GEN_PATH = Path("data/Generacion Central El Canelo.xlsx")
+LOGO_PATH = "assets/logo.jpg"
 
 def mostrar_titulo_con_logo(logo_path):
     logo_path_obj = Path(logo_path)
@@ -23,7 +24,7 @@ def mostrar_titulo_con_logo(logo_path):
             encoded = base64.b64encode(image_file.read()).decode()
         st.markdown(
             f"<div style='display:flex; align-items:center;'>"
-            f"<img src='data:image/{image_type};base64,{encoded}' style='height:60px;margin-right:15px;'/>"
+            f"<img src='data:image/{image_type};base64,{encoded}' style='height:240px;margin-right:60px;'/>"
             f"<h1 style='display:inline;'>Reporte Operativo y Financiero - Hidroeléctrica El Canelo</h1>"
             f"</div>", unsafe_allow_html=True
         )
@@ -302,8 +303,7 @@ def main():
 - 
 """)
 
-    st.caption(f"Reporte generado el {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | Derechos reservados © 2025")
+    st.caption(f"Reporte generado el {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | Marcelo Arriagada © 2025")
 
 if __name__ == "__main__":
     main()
-
