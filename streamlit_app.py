@@ -3,7 +3,6 @@ import pandas as pd
 from pathlib import Path
 import plotly.graph_objects as go
 import base64
-import os # Importar os para detectar el sistema operativo
 
 # === CONFIGURACIÓN DE PÁGINA Y ESTILOS ===
 st.set_page_config(page_title="Reporte Operativo y Financiero", layout="wide")
@@ -12,36 +11,16 @@ KPI_FONT_SIZE = 25
 KPI_DELTA_FONT_SIZE = 18
 CHART_HEIGHT = 450
 
-# --- Lógica para definir rutas según el entorno ---
-# Detectar si estamos en un entorno "local" (Windows) o "remoto" (Streamlit Cloud/Linux)
-# Una forma de hacerlo es verificar una variable de entorno de Streamlit Cloud o el SO.
-# Streamlit Cloud establece la variable de entorno 'STREAMLIT_SERVER_PORT'.
-# O puedes simplemente verificar si estás en Windows o Linux/macOS.
-
-# La ruta base de tu proyecto.
-# Si el script se ejecuta desde la raíz de "REPORTE WEB", la ruta base es el directorio actual.
-BASE_DIR = Path(__file__).parent 
-
-# Para entorno local de Windows, podrías necesitar una ruta más específica
-# Por ejemplo, si tu proyecto está en "C:\One Drive Hotmail\OneDrive\Documentos\Python VSCode\REPORTE WEB"
-# y ejecutas el script desde esa carpeta, Path(__file__).parent ya te da esa ruta.
-# Si ejecutas desde otro lugar y quieres especificar la ruta completa para Windows, podrías hacer esto:
-# if os.name == 'nt': # 'nt' significa Windows
-#     # Esta sería la ruta si quieres ser explícito para tu configuración local específica
-#     # y no ejecutas el script desde la raíz del proyecto REPORTE WEB.
-#     # Asegúrate que esta ruta es correcta para tu setup local.
-#     BASE_DIR = Path(r"C:\One Drive Hotmail\OneDrive\Documentos\Python VSCode\REPORTE WEB")
-
-# Rutas de los archivos usando BASE_DIR para que sean relativas al proyecto
+# --- Rutas relativas universales ---
+BASE_DIR = Path(__file__).parent
 EXCEL_PATH = BASE_DIR / "data" / "HEC mensuales 2025.xlsx"
 GEN_PATH = BASE_DIR / "data" / "Generacion Central El Canelo.xlsx"
-LOGO_PATH = BASE_DIR / "assets" / "logo.jpg" # logo.jpg es un string porque `mostrar_titulo_con_logo` lo espera como string
+LOGO_PATH = BASE_DIR / "assets" / "logo.jpg"
 
-
-def mostrar_titulo_con_logo(logo_path_str): # Renombrado a logo_path_str para claridad
-    logo_path_obj = Path(logo_path_str) # Convertir a Path para usar .exists()
+def mostrar_titulo_con_logo(logo_path):
+    logo_path_obj = Path(logo_path)
     if logo_path_obj.exists():
-        with open(logo_path_obj, "rb") as image_file: # Usar logo_path_obj aquí
+        with open(logo_path_obj, "rb") as image_file:
             image_type = "jpeg" if logo_path_obj.suffix.lower() in [".jpg", ".jpeg"] else logo_path_obj.suffix.lower().replace(".", "")
             encoded = base64.b64encode(image_file.read()).decode()
         st.markdown(
@@ -55,7 +34,6 @@ def mostrar_titulo_con_logo(logo_path_str): # Renombrado a logo_path_str para cl
 
 @st.cache_data(ttl=3600)
 def cargar_datos(path):
-    # Asegurarse de que el path sea un string para pandas si es un objeto Path
     df_pluv = pd.read_excel(str(path), sheet_name="Pluviometria", skiprows=127, usecols="C:D")
     df_pluv.columns = ["Fecha", "Precipitacion"]
     df_pluv["Fecha"] = pd.to_datetime(df_pluv["Fecha"], errors='coerce')
@@ -74,7 +52,6 @@ def cargar_datos(path):
 
 @st.cache_data(ttl=3600)
 def cargar_generacion_diaria(path, año, mes):
-    # Asegurarse de que el path sea un string para pandas
     df = pd.read_excel(str(path), sheet_name=0, header=None)
     header_row = None
     for i, row in df.iterrows():
@@ -98,7 +75,6 @@ def cargar_generacion_diaria(path, año, mes):
 
 @st.cache_data(ttl=3600)
 def cargar_estado_resultado(path):
-    # Asegurarse de que el path sea un string para pandas
     df = pd.read_excel(str(path), sheet_name="Estado de Resultado", header=None, usecols="A:G", skiprows=5, nrows=39)
     df.columns = df.iloc[0]
     df = df[1:].reset_index(drop=True)
@@ -211,13 +187,21 @@ def main():
     ]
     meses_str_for_chart = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
-    mostrar_titulo_con_logo(str(LOGO_PATH)) # Asegurarse de pasar la ruta como string
+    mostrar_titulo_con_logo(LOGO_PATH)
     mes_idx = st.sidebar.selectbox("Selecciona el mes", list(enumerate(meses_labels)), index=5, format_func=lambda x: x[1])[0]
     mes_nombre = meses_labels[mes_idx]
     año_actual = 2025
     mes_num = mes_idx + 1
 
     st.header(f"Período: {mes_nombre} {año_actual}")
+
+    # --- Verificación de archivos (puedes quitar estas líneas tras depurar) ---
+    st.write(f"Ruta Excel: {EXCEL_PATH}")
+    st.write(f"¿Existe el archivo Excel? {EXCEL_PATH.exists()}")
+    st.write(f"Ruta Generación: {GEN_PATH}")
+    st.write(f"¿Existe el archivo de generación? {GEN_PATH.exists()}")
+    st.write(f"Ruta Logo: {LOGO_PATH}")
+    st.write(f"¿Existe el logo? {LOGO_PATH.exists()}")
 
     df_pluv, df_hist = cargar_datos(EXCEL_PATH)
 
