@@ -195,13 +195,6 @@ def main():
 
     st.header(f"Período: {mes_nombre} {año_actual}")
 
-    # --- Verificación de archivos (puedes quitar estas líneas tras depurar) ---
-    st.write(f"Ruta Excel: {EXCEL_PATH}")
-    st.write(f"¿Existe el archivo Excel? {EXCEL_PATH.exists()}")
-    st.write(f"Ruta Generación: {GEN_PATH}")
-    st.write(f"¿Existe el archivo de generación? {GEN_PATH.exists()}")
-    st.write(f"Ruta Logo: {LOGO_PATH}")
-    st.write(f"¿Existe el logo? {LOGO_PATH.exists()}")
 
     df_pluv, df_hist = cargar_datos(EXCEL_PATH)
 
@@ -313,7 +306,7 @@ def main():
 - 
 """)
 
-    st.caption(f"Reporte generado el {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | Derechos reservados © 2025")
+    st.caption(f"Reporte generado el {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | Marcelo Arriagada © 2025")
 
 if __name__ == "__main__":
     main()
