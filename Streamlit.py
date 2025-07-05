@@ -11,7 +11,7 @@ KPI_FONT_SIZE = 25
 KPI_DELTA_FONT_SIZE = 18
 CHART_HEIGHT = 450
 
-# Rutas relativas para compatibilidad local y nube
+# Rutas relativas para archivos dentro del proyecto
 EXCEL_PATH = Path("data/HEC mensuales 2025.xlsx")
 GEN_PATH = Path("data/Generacion Central El Canelo.xlsx")
 LOGO_PATH = "assets/logo.jpg"
@@ -196,7 +196,7 @@ def main():
 
     df_pluv, df_hist = cargar_datos(EXCEL_PATH)
 
-    # KPIs
+    # KPIs mensuales
     gen25_mes = df_hist[(df_hist["Año"] == año_actual) & (df_hist["Mes"] == mes_num)]["Generacion"].sum()
     gen24_mes = df_hist[(df_hist["Año"] == año_actual-1) & (df_hist["Mes"] == mes_num)]["Generacion"].sum()
     genavg_mes = df_hist[(df_hist["Año"].between(año_actual-5, año_actual-1)) & (df_hist["Mes"] == mes_num)]["Generacion"].mean()
@@ -207,6 +207,7 @@ def main():
     prec24_mes = df_pluv[(df_pluv["Año"] == año_actual-1) & (df_pluv["Mes"] == mes_num)]["Precipitacion"].sum()
     precavg_mes = df_pluv[(df_pluv["Año"].between(año_actual-5, año_actual-1)) & (df_pluv["Mes"] == mes_num)]["Precipitacion"].mean()
 
+    # KPIs acumulados
     gen25_acum = df_hist[(df_hist["Año"] == año_actual) & (df_hist["Mes"] <= mes_num)]["Generacion"].sum()
     gen24_acum = df_hist[(df_hist["Año"] == año_actual-1) & (df_hist["Mes"] <= mes_num)]["Generacion"].sum()
     genavg_acum = df_hist[df_hist["Año"].between(año_actual-5, año_actual-1)].groupby("Año").apply(lambda x: x[x["Mes"] <= mes_num]["Generacion"].sum()).mean()
@@ -284,7 +285,7 @@ def main():
     # Estado de Resultado Operativo
     df_estado = cargar_estado_resultado(EXCEL_PATH)
     if not df_estado.empty:
-        st.subheader("Estado de Resultado Operativo Perido 2025)")
+        st.subheader("Estado de Resultado Operativo Período 2025")
         df_estado_op = tabla_estado_resultado_operativa(df_estado)
         st.dataframe(df_estado_op, use_container_width=True)
     else:
@@ -303,7 +304,7 @@ def main():
 - 
 """)
 
-    st.caption(f"Reporte generado el {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | Marcelo Arriagada © 2025")
+    st.caption(f"Reporte generado el {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | Derechos reservados © 2025")
 
 if __name__ == "__main__":
     main()
