@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 import plotly.graph_objects as go
 import base64
+import os # Importar os para detectar el sistema operativo
 
 # === CONFIGURACIÓN DE PÁGINA Y ESTILOS ===
 st.set_page_config(page_title="Reporte Operativo y Financiero", layout="wide")
@@ -11,14 +12,36 @@ KPI_FONT_SIZE = 25
 KPI_DELTA_FONT_SIZE = 18
 CHART_HEIGHT = 450
 
-EXCEL_PATH = Path("HEC mensuales 2025.xlsx")
-GEN_PATH = Path(r"C:\One Drive Hotmail\OneDrive\Documentos\Python VSCode\REPORTE WEB\Generacion Central El Canelo.xlsx")
-LOGO_PATH = r"C:\One Drive Hotmail\OneDrive\Documentos\Python VSCode\REPORTE WEB\logo.jpg"
+# --- Lógica para definir rutas según el entorno ---
+# Detectar si estamos en un entorno "local" (Windows) o "remoto" (Streamlit Cloud/Linux)
+# Una forma de hacerlo es verificar una variable de entorno de Streamlit Cloud o el SO.
+# Streamlit Cloud establece la variable de entorno 'STREAMLIT_SERVER_PORT'.
+# O puedes simplemente verificar si estás en Windows o Linux/macOS.
 
-def mostrar_titulo_con_logo(logo_path):
-    logo_path_obj = Path(logo_path)
+# La ruta base de tu proyecto.
+# Si el script se ejecuta desde la raíz de "REPORTE WEB", la ruta base es el directorio actual.
+BASE_DIR = Path(__file__).parent 
+
+# Para entorno local de Windows, podrías necesitar una ruta más específica
+# Por ejemplo, si tu proyecto está en "C:\One Drive Hotmail\OneDrive\Documentos\Python VSCode\REPORTE WEB"
+# y ejecutas el script desde esa carpeta, Path(__file__).parent ya te da esa ruta.
+# Si ejecutas desde otro lugar y quieres especificar la ruta completa para Windows, podrías hacer esto:
+# if os.name == 'nt': # 'nt' significa Windows
+#     # Esta sería la ruta si quieres ser explícito para tu configuración local específica
+#     # y no ejecutas el script desde la raíz del proyecto REPORTE WEB.
+#     # Asegúrate que esta ruta es correcta para tu setup local.
+#     BASE_DIR = Path(r"C:\One Drive Hotmail\OneDrive\Documentos\Python VSCode\REPORTE WEB")
+
+# Rutas de los archivos usando BASE_DIR para que sean relativas al proyecto
+EXCEL_PATH = BASE_DIR / "data" / "HEC mensuales 2025.xlsx"
+GEN_PATH = BASE_DIR / "data" / "Generacion Central El Canelo.xlsx"
+LOGO_PATH = BASE_DIR / "assets" / "logo.jpg" # logo.jpg es un string porque `mostrar_titulo_con_logo` lo espera como string
+
+
+def mostrar_titulo_con_logo(logo_path_str): # Renombrado a logo_path_str para claridad
+    logo_path_obj = Path(logo_path_str) # Convertir a Path para usar .exists()
     if logo_path_obj.exists():
-        with open(logo_path, "rb") as image_file:
+        with open(logo_path_obj, "rb") as image_file: # Usar logo_path_obj aquí
             image_type = "jpeg" if logo_path_obj.suffix.lower() in [".jpg", ".jpeg"] else logo_path_obj.suffix.lower().replace(".", "")
             encoded = base64.b64encode(image_file.read()).decode()
         st.markdown(
@@ -32,14 +55,15 @@ def mostrar_titulo_con_logo(logo_path):
 
 @st.cache_data(ttl=3600)
 def cargar_datos(path):
-    df_pluv = pd.read_excel(path, sheet_name="Pluviometria", skiprows=127, usecols="C:D")
+    # Asegurarse de que el path sea un string para pandas si es un objeto Path
+    df_pluv = pd.read_excel(str(path), sheet_name="Pluviometria", skiprows=127, usecols="C:D")
     df_pluv.columns = ["Fecha", "Precipitacion"]
     df_pluv["Fecha"] = pd.to_datetime(df_pluv["Fecha"], errors='coerce')
     df_pluv.dropna(subset=["Fecha", "Precipitacion"], inplace=True)
     df_pluv["Año"] = df_pluv["Fecha"].dt.year
     df_pluv["Mes"] = df_pluv["Fecha"].dt.month
 
-    df_hist = pd.read_excel(path, sheet_name="Datos Historicos", skiprows=195, usecols="C:G")
+    df_hist = pd.read_excel(str(path), sheet_name="Datos Historicos", skiprows=195, usecols="C:G")
     df_hist.columns = ["Fecha", "Generacion", "Generacion_Ref", "Potencia", "Ventas"]
     df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors='coerce')
     df_hist.dropna(subset=["Fecha", "Generacion", "Ventas"], inplace=True)
@@ -50,7 +74,8 @@ def cargar_datos(path):
 
 @st.cache_data(ttl=3600)
 def cargar_generacion_diaria(path, año, mes):
-    df = pd.read_excel(path, sheet_name=0, header=None)
+    # Asegurarse de que el path sea un string para pandas
+    df = pd.read_excel(str(path), sheet_name=0, header=None)
     header_row = None
     for i, row in df.iterrows():
         if ("APORTE.CANELO\nIntervalo de energía activa generada\n(kWh)" in row.values and "Fecha y hora" in row.values):
@@ -58,7 +83,7 @@ def cargar_generacion_diaria(path, año, mes):
             break
     if header_row is None:
         return pd.DataFrame()
-    df = pd.read_excel(path, sheet_name=0, header=header_row)
+    df = pd.read_excel(str(path), sheet_name=0, header=header_row)
     col_fecha = "Fecha y hora"
     col_gen = "APORTE.CANELO\nIntervalo de energía activa generada\n(kWh)"
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors="coerce", dayfirst=True)
@@ -73,7 +98,8 @@ def cargar_generacion_diaria(path, año, mes):
 
 @st.cache_data(ttl=3600)
 def cargar_estado_resultado(path):
-    df = pd.read_excel(path, sheet_name="Estado de Resultado", header=None, usecols="A:G", skiprows=5, nrows=39)
+    # Asegurarse de que el path sea un string para pandas
+    df = pd.read_excel(str(path), sheet_name="Estado de Resultado", header=None, usecols="A:G", skiprows=5, nrows=39)
     df.columns = df.iloc[0]
     df = df[1:].reset_index(drop=True)
     return df
@@ -185,7 +211,7 @@ def main():
     ]
     meses_str_for_chart = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
-    mostrar_titulo_con_logo(LOGO_PATH)
+    mostrar_titulo_con_logo(str(LOGO_PATH)) # Asegurarse de pasar la ruta como string
     mes_idx = st.sidebar.selectbox("Selecciona el mes", list(enumerate(meses_labels)), index=5, format_func=lambda x: x[1])[0]
     mes_nombre = meses_labels[mes_idx]
     año_actual = 2025
@@ -195,7 +221,7 @@ def main():
 
     df_pluv, df_hist = cargar_datos(EXCEL_PATH)
 
-    # KPIs
+    # KPIs mensuales
     gen25_mes = df_hist[(df_hist["Año"] == año_actual) & (df_hist["Mes"] == mes_num)]["Generacion"].sum()
     gen24_mes = df_hist[(df_hist["Año"] == año_actual-1) & (df_hist["Mes"] == mes_num)]["Generacion"].sum()
     genavg_mes = df_hist[(df_hist["Año"].between(año_actual-5, año_actual-1)) & (df_hist["Mes"] == mes_num)]["Generacion"].mean()
@@ -206,6 +232,7 @@ def main():
     prec24_mes = df_pluv[(df_pluv["Año"] == año_actual-1) & (df_pluv["Mes"] == mes_num)]["Precipitacion"].sum()
     precavg_mes = df_pluv[(df_pluv["Año"].between(año_actual-5, año_actual-1)) & (df_pluv["Mes"] == mes_num)]["Precipitacion"].mean()
 
+    # KPIs acumulados
     gen25_acum = df_hist[(df_hist["Año"] == año_actual) & (df_hist["Mes"] <= mes_num)]["Generacion"].sum()
     gen24_acum = df_hist[(df_hist["Año"] == año_actual-1) & (df_hist["Mes"] <= mes_num)]["Generacion"].sum()
     genavg_acum = df_hist[df_hist["Año"].between(año_actual-5, año_actual-1)].groupby("Año").apply(lambda x: x[x["Mes"] <= mes_num]["Generacion"].sum()).mean()
@@ -283,7 +310,7 @@ def main():
     # Estado de Resultado Operativo
     df_estado = cargar_estado_resultado(EXCEL_PATH)
     if not df_estado.empty:
-        st.subheader("Estado de Resultado Operativo Perido 2025)")
+        st.subheader("Estado de Resultado Operativo Período 2025")
         df_estado_op = tabla_estado_resultado_operativa(df_estado)
         st.dataframe(df_estado_op, use_container_width=True)
     else:
@@ -306,4 +333,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
