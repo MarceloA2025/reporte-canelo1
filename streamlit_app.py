@@ -23,7 +23,7 @@ def mostrar_titulo_con_logo(logo_path):
             encoded = base64.b64encode(image_file.read()).decode()
         st.markdown(
             f"<div style='display:flex; align-items:center;'>"
-            f"<img src='data:image/{image_type};base64,{encoded}' style='height:60px;margin-right:15px;'/>"
+            f"<img src='data:image/{image_type};base64,{encoded}' style='height:120px;margin-right:30px;'/>"
             f"<h1 style='display:inline;'>Reporte Operativo y Financiero - Hidroeléctrica El Canelo</h1>"
             f"</div>", unsafe_allow_html=True
         )
